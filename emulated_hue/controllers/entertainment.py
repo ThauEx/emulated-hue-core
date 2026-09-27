@@ -150,7 +150,9 @@ class EntertainmentAPI:
             x = float((light_data[3] * 256 + light_data[4]) / 65535)
             y = float((light_data[5] * 256 + light_data[6]) / 65535)
             brightness = (light_data[7] * 256 + light_data[8]) / 65535
-            rgb = xy_brightness_to_rgb(x, y, brightness, light_conf.get("esphome_gamut"))
+            rgb = xy_brightness_to_rgb(
+                x, y, brightness, light_conf.get("esphome_gamut")
+            )
 
         if light_conf.get("esphome_host") and await esphome_direct.async_send_color(
             host=light_conf["esphome_host"],

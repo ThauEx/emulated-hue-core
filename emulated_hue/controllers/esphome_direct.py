@@ -1,4 +1,5 @@
-"""Direct ESPHome native-API path for entertainment streaming.
+"""
+Direct ESPHome native-API path for entertainment streaming.
 
 Hue Entertainment mode calls into Home Assistant for every light on every
 frame (25-50Hz), which normally goes through HA's websocket service-call
@@ -47,7 +48,7 @@ async def _async_get_ready_client(
         lights = [entity for entity in entities if isinstance(entity, LightInfo)]
         light = None
         if object_id:
-            light = next((l for l in lights if l.object_id == object_id), None)
+            light = next((li for li in lights if li.object_id == object_id), None)
         if light is None and lights:
             if len(lights) > 1:
                 LOGGER.warning(
@@ -76,7 +77,8 @@ async def async_send_color(
     color_temperature: float | None = None,
     brightness: float | None = None,
 ) -> bool:
-    """Send a colour directly to an ESPHome light.
+    """
+    Send a colour directly to an ESPHome light.
 
     rgb channels and brightness are 0-1 floats, color_temperature is in mireds
     (matching what the ESPHome native API expects). Returns True on success,

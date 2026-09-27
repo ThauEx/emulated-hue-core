@@ -1,4 +1,5 @@
-"""Colour conversion helpers for the entertainment streaming path.
+"""
+Colour conversion helpers for the entertainment streaming path.
 
 Home Assistant would otherwise convert the CIE xy values a Hue Entertainment
 stream sends into RGB itself, using a generic sRGB gamut assumption that
@@ -29,7 +30,8 @@ def _gamma_correct(component: float) -> float:
 def xy_brightness_to_rgb(
     x: float, y: float, brightness: float, gamut: tuple | None = None
 ) -> tuple[float, float, float]:
-    """Convert CIE xy + brightness (0-1) to 0-1 RGB.
+    """
+    Convert CIE xy + brightness (0-1) to 0-1 RGB.
 
     Mirrors the conversion a real Hue light does internally. `gamut`, if
     given, is a 3x3 XYZ->RGB matrix (same shape as the default) tuned to a
@@ -43,8 +45,7 @@ def xy_brightness_to_rgb(
     capital_z = (capital_y / y) * (1.0 - x - y)
 
     rgb = [
-        row[0] * capital_x + row[1] * capital_y + row[2] * capital_z
-        for row in matrix
+        row[0] * capital_x + row[1] * capital_y + row[2] * capital_z for row in matrix
     ]
     rgb = [_gamma_correct(c) for c in rgb]
 
