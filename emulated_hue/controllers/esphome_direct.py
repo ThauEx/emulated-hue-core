@@ -29,6 +29,18 @@ LOGGER = logging.getLogger(__name__)
 # device is never dialed twice even if it appears under multiple light ids.
 _clients: dict[str, APIClient] = {}
 _light_keys: dict[str, int] = {}
+# Hosts we've already logged as inactive, so a still-unreachable device
+# doesn't spam a warning/info line on every single request.
+_logged_inactive: set[str] = set()
+
+
+def _log_inactive(host: str) -> None:
+    if host not in _logged_inactive:
+        LOGGER.info(
+            "Direct ESPHome path inactive for %s - falling back to Home Assistant",
+            host,
+        )
+        _logged_inactive.add(host)
 
 
 async def _async_get_ready_client(
@@ -48,6 +60,7 @@ async def _async_get_ready_client(
         except APIConnectionError as err:
             LOGGER.warning("Could not connect to ESPHome device at %s: %s", host, err)
             _clients.pop(host, None)
+            _log_inactive(host)
             return None
 
         lights = [entity for entity in entities if isinstance(entity, LightInfo)]
@@ -66,10 +79,12 @@ async def _async_get_ready_client(
             light = lights[0]
         if light is None:
             LOGGER.warning("No light entity found on ESPHome device %s", host)
+            _log_inactive(host)
             return None
         _light_keys[host] = light.key
+        _logged_inactive.discard(host)
         LOGGER.info(
-            "Direct ESPHome entertainment path active for %s (light %s)",
+            "Direct ESPHome path active for %s (light %s)",
             host,
             light.object_id,
         )
@@ -121,6 +136,7 @@ async def async_send_light_state(
         LOGGER.warning("Lost connection to ESPHome device %s: %s", host, err)
         _clients.pop(host, None)
         _light_keys.pop(host, None)
+        _log_inactive(host)
         return False
     return True
 
@@ -136,3 +152,4 @@ async def async_close_all() -> None:
             )
     _clients.clear()
     _light_keys.clear()
+    _logged_inactive.clear()
