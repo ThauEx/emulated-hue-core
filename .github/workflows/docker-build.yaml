@@ -102,10 +102,7 @@ jobs:
       matrix:
         arch: [amd64]
         registry:
-          - {
-              url: ghcr.io,
-              repo: "ghcr.io/${{ github.repository }}",
-            }
+          - { url: ghcr.io }
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -123,13 +120,18 @@ jobs:
         run: |
           docker login ${{ matrix.registry.url }} -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }}
 
+      # GHCR requires an all-lowercase repository path; github.repository
+      # keeps the actual case of the account/repo name.
+      - name: Compute lowercase repo
+        run: echo "GHCR_REPO=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
       - name: Push image
         # if: ${{ startsWith(github.ref, 'refs/tags/') }}
         if: ${{ github.ref == 'refs/heads/master' }}
         run: |
           docker/publish.py \
             --tag ${GITHUB_REF##*/} \
-            --repo ${{ matrix.registry.repo }} \
+            --repo ${{ env.GHCR_REPO }} \
             --image \
             --ci \
             --arch ${{ matrix.arch }} \
@@ -142,7 +144,7 @@ jobs:
         run: |
           docker/publish.py \
             --tag ${GITHUB_REF##*/} \
-            --repo ${{ matrix.registry.repo }} \
+            --repo ${{ env.GHCR_REPO }} \
             --image \
             --ci \
             --arch ${{ matrix.arch }} \
@@ -157,10 +159,7 @@ jobs:
     strategy:
       matrix:
         registry:
-          - {
-              url: ghcr.io,
-              repo: "ghcr.io/${{ github.repository }}",
-            }
+          - { url: ghcr.io }
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -174,13 +173,18 @@ jobs:
         run: |
           docker login ${{ matrix.registry.url }} -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }}
 
+      # GHCR requires an all-lowercase repository path; github.repository
+      # keeps the actual case of the account/repo name.
+      - name: Compute lowercase repo
+        run: echo "GHCR_REPO=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
       - name: Create Manifest
         # if: ${{ startsWith(github.ref, 'refs/tags/') }}
         if: ${{ github.ref == 'refs/heads/master' }}
         run: |
           docker/publish.py \
             --tag ${GITHUB_REF##*/} \
-            --repo ${{ matrix.registry.repo }} \
+            --repo ${{ env.GHCR_REPO }} \
             --manifest \
             --ci \
             --latest
@@ -191,6 +195,6 @@ jobs:
         run: |
           docker/publish.py \
             --tag ${GITHUB_REF##*/} \
-            --repo ${{ matrix.registry.repo }} \
+            --repo ${{ env.GHCR_REPO }} \
             --manifest \
             --ci
