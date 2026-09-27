@@ -34,7 +34,7 @@ class EntityState(BaseModel):
     transition_seconds: float | None = None
     brightness: int | None = None
     color_temp: int | None = None
-    hue_saturation: tuple[int, int] | None = None
+    hue_saturation: tuple[float, float] | None = None
     xy_color: tuple[float, float] | None = None
     rgb_color: tuple[int, int, int] | None = None
     flash_state: str | None = None

@@ -498,7 +498,7 @@ class RGBDevice(BrightnessDevice):
         return self._config_state.color_mode or const.HASS_COLOR_MODE_XY
 
     @property
-    def hue_sat(self) -> tuple[int, int]:
+    def hue_sat(self) -> tuple[float, float]:
         """Return hue_saturation."""
         return self._config_state.hue_saturation or (0, 0)
 
