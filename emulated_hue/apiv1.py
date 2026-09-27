@@ -310,7 +310,7 @@ class HueApiV1Endpoints:
         if "stream" in group_conf:
             if group_conf["stream"].get("active"):
                 # Requested streaming start
-                LOGGER.debug(
+                LOGGER.info(
                     "Start Entertainment mode for group %s - params: %s",
                     group_id,
                     request_data,
