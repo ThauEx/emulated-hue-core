@@ -52,6 +52,12 @@ class Config:
         self.esphome_host = esphome_host
         self.esphome_port = esphome_port
         self.esphome_password = esphome_password
+        LOGGER.info(
+            "ESPHome direct-path default: host=%s port=%s password_set=%s",
+            esphome_host or "(none)",
+            esphome_port,
+            bool(esphome_password),
+        )
         if not os.path.isdir(data_path):
             os.mkdir(data_path)
         self._config = load_json(self.get_path(CONFIG_FILE))
