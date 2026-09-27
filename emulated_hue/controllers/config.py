@@ -268,7 +268,7 @@ class Config:
         return main_val
 
     async def async_set_storage_value(
-        self, key: str, subkey: str, value: str or dict
+        self, key: str, subkey: str, value: str | dict
     ) -> None:
         """Set a value in persistent storage."""
         needs_save = False
@@ -280,7 +280,7 @@ class Config:
             # new sublevel created
             self._config[key] = {subkey: value}
             needs_save = True
-        elif subkey and self._config[key].get(key) != value:
+        elif subkey and self._config[key].get(subkey) != value:
             # sub key changed
             self._config[key][subkey] = value
             needs_save = True
