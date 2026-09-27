@@ -72,6 +72,25 @@ if __name__ == "__main__":
         help=f"Always use HTTP port {const.HUE_HTTP_PORT} and HTTPS port {const.HUE_HTTPS_PORT} for discovery "
         f"regardless of actual exposed ports. Useful with reverse proxy.",
     )
+    parser.add_argument(
+        "--esphome-host",
+        type=str,
+        help="Default ESPHome host for the direct entertainment path, used by "
+        "lights that don't set their own esphome_host",
+        default=os.getenv("ESPHOME_HOST", ""),
+    )
+    parser.add_argument(
+        "--esphome-port",
+        type=int,
+        help="Default ESPHome native API port for the direct entertainment path",
+        default=os.getenv("ESPHOME_PORT", "6053"),
+    )
+    parser.add_argument(
+        "--esphome-password",
+        type=str,
+        help="Default ESPHome native API password for the direct entertainment path",
+        default=os.getenv("ESPHOME_PASSWORD", ""),
+    )
 
     args = parser.parse_args()
     datapath = args.data
@@ -89,7 +108,15 @@ if __name__ == "__main__":
     logging.getLogger("hass_client").setLevel(logging.INFO)
 
     hue = HueEmulator(
-        datapath, url, token, args.http_port, args.https_port, use_default_ports
+        datapath,
+        url,
+        token,
+        args.http_port,
+        args.https_port,
+        use_default_ports,
+        args.esphome_host,
+        args.esphome_port,
+        args.esphome_password,
     )
 
     def on_shutdown(loop):

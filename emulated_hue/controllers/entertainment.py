@@ -154,10 +154,16 @@ class EntertainmentAPI:
                 x, y, brightness, light_conf.get("esphome_gamut")
             )
 
-        if light_conf.get("esphome_host") and await esphome_direct.async_send_color(
-            host=light_conf["esphome_host"],
-            port=light_conf.get("esphome_port", 6053),
-            password=light_conf.get("esphome_password", ""),
+        # A light's own esphome_host always wins; otherwise fall back to the
+        # add-on-wide default (set via the add-on's Configuration tab), so a
+        # single-ESPHome-light setup needs no emulated_hue.json editing at all.
+        config_instance = self.ctl.config_instance
+        esphome_host = light_conf.get("esphome_host") or config_instance.esphome_host
+        if esphome_host and await esphome_direct.async_send_color(
+            host=esphome_host,
+            port=light_conf.get("esphome_port") or config_instance.esphome_port,
+            password=light_conf.get("esphome_password")
+            or config_instance.esphome_password,
             object_id=light_conf.get("esphome_object_id"),
             rgb=rgb,
             brightness=brightness,

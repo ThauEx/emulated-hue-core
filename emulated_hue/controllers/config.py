@@ -39,10 +39,19 @@ class Config:
         http_port: int,
         https_port: int,
         use_default_ports: bool,
+        esphome_host: str = "",
+        esphome_port: int = 6053,
+        esphome_password: str = "",
     ):
         """Initialize the instance."""
         self.ctl = ctl
         self.data_path = data_path
+        # Default ESPHome native-API target for the direct entertainment path,
+        # used by lights that don't set their own esphome_host in their light
+        # config. A light-level esphome_host always takes precedence.
+        self.esphome_host = esphome_host
+        self.esphome_port = esphome_port
+        self.esphome_password = esphome_password
         if not os.path.isdir(data_path):
             os.mkdir(data_path)
         self._config = load_json(self.get_path(CONFIG_FILE))

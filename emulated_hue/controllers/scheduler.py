@@ -4,7 +4,7 @@ import inspect
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-_schedules: dict[int : asyncio.Task] = {}
+_schedules: dict[int, asyncio.Task] = {}
 
 
 def _async_scheduler_factory(

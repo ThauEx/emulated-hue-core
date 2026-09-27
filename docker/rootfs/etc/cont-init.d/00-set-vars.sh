@@ -36,4 +36,16 @@ if bashio::fs.file_exists '/data/options.json'; then
       echo $(bashio::config 'verbose') > /run/s6/container_environment/VERBOSE
   fi
 
+  if bashio::config.has_value 'esphome_host'; then
+      echo $(bashio::config 'esphome_host') > /run/s6/container_environment/ESPHOME_HOST
+  fi
+
+  if bashio::config.has_value 'esphome_port'; then
+      echo $(bashio::config 'esphome_port') > /run/s6/container_environment/ESPHOME_PORT
+  fi
+
+  if bashio::config.has_value 'esphome_password'; then
+      echo $(bashio::config 'esphome_password') > /run/s6/container_environment/ESPHOME_PASSWORD
+  fi
+
 fi
