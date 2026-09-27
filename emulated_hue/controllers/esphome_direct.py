@@ -34,6 +34,11 @@ LOGGER = logging.getLogger(__name__)
 # device is never dialed twice even if it appears under multiple light ids.
 _clients: dict[str, APIClient] = {}
 _light_keys: dict[str, int] = {}
+# The light's own declared color modes (e.g. a 5-channel rgbww light only
+# supports RGB_COLD_WARM_WHITE, not plain RGB) plus its min/max mireds -
+# needed to pick a color_mode the device actually accepts, and to convert a
+# plain color_temperature into a cold/warm blend when that's all it has.
+_light_caps: dict[str, tuple[frozenset, float, float]] = {}
 # Hosts we've already logged as inactive, so a still-unreachable device
 # doesn't spam a warning/info line on every single request.
 _logged_inactive: set[str] = set()
@@ -64,6 +69,64 @@ def _split_credential(credential: str) -> tuple[str | None, str | None]:
     except (binascii.Error, ValueError):
         pass
     return credential, None
+
+
+def _cold_warm_fractions(
+    color_temperature: float, min_mireds: float, max_mireds: float
+) -> tuple[float, float]:
+    """Convert mireds to a (cold_white, warm_white) 0-1 blend for lights with no native color_temperature mode."""
+    if max_mireds <= min_mireds:
+        return 1.0, 0.0
+    warm_fraction = (color_temperature - min_mireds) / (max_mireds - min_mireds)
+    warm_fraction = max(0.0, min(warm_fraction, 1.0))
+    return 1.0 - warm_fraction, warm_fraction
+
+
+def _pick_color_mode_and_extra(
+    supported: frozenset,
+    rgb: tuple[float, float, float] | None,
+    color_temperature: float | None,
+    min_mireds: float = 0.0,
+    max_mireds: float = 0.0,
+) -> tuple[ColorMode | None, dict]:
+    """
+    Pick a color_mode the device actually supports, plus extra channels to pin.
+
+    A light with white LEDs (RGB_COLD_WARM_WHITE / RGB_WHITE / COLD_WARM_WHITE)
+    only accepts a mode covering all of its channels at once - if we send
+    plain RGB or color_temperature (or leave channels that mode needs unset),
+    the device rejects the command or blends in whatever level was last set,
+    washing the color out. So we explicitly pin every channel that mode
+    needs, converting color_temperature to a cold/warm blend ourselves when
+    the device has no native color_temperature mode at all.
+    """
+    if rgb is not None:
+        if ColorMode.RGB in supported:
+            return ColorMode.RGB, {}
+        if ColorMode.RGB_COLD_WARM_WHITE in supported:
+            return ColorMode.RGB_COLD_WARM_WHITE, {"cold_white": 0.0, "warm_white": 0.0}
+        if ColorMode.RGB_WHITE in supported:
+            return ColorMode.RGB_WHITE, {"white": 0.0}
+        return ColorMode.RGB, {}
+    if color_temperature is not None:
+        if ColorMode.COLOR_TEMPERATURE in supported:
+            return ColorMode.COLOR_TEMPERATURE, {}
+        cold, warm = _cold_warm_fractions(color_temperature, min_mireds, max_mireds)
+        if ColorMode.RGB_COLD_WARM_WHITE in supported:
+            return ColorMode.RGB_COLD_WARM_WHITE, {
+                "rgb": (0.0, 0.0, 0.0),
+                "color_temperature": None,
+                "cold_white": cold,
+                "warm_white": warm,
+            }
+        if ColorMode.COLD_WARM_WHITE in supported:
+            return ColorMode.COLD_WARM_WHITE, {
+                "color_temperature": None,
+                "cold_white": cold,
+                "warm_white": warm,
+            }
+        return ColorMode.COLOR_TEMPERATURE, {}
+    return None, {}
 
 
 async def _async_get_ready_client(
@@ -106,6 +169,11 @@ async def _async_get_ready_client(
             _log_inactive(host)
             return None
         _light_keys[host] = light.key
+        _light_caps[host] = (
+            frozenset(light.supported_color_modes),
+            light.min_mireds,
+            light.max_mireds,
+        )
         _logged_inactive.discard(host)
         LOGGER.info(
             "Direct ESPHome path active for %s (light %s)",
@@ -143,25 +211,29 @@ async def async_send_light_state(
         return False
     client, key = ready
 
-    color_mode = None
-    if rgb is not None:
-        color_mode = ColorMode.RGB
-    elif color_temperature is not None:
-        color_mode = ColorMode.COLOR_TEMPERATURE
+    supported, min_mireds, max_mireds = _light_caps.get(host, (frozenset(), 0.0, 0.0))
+    color_mode, extra = _pick_color_mode_and_extra(
+        supported, rgb, color_temperature, min_mireds, max_mireds
+    )
+    # extra may itself set rgb/color_temperature (e.g. converting a plain
+    # color_temperature into a cold/warm blend), so it must win on conflict.
+    kwargs = {
+        "key": key,
+        "state": power,
+        "color_mode": color_mode,
+        "rgb": rgb,
+        "color_temperature": color_temperature,
+        "brightness": brightness,
+        "transition_length": 0,
+        **extra,
+    }
     try:
-        client.light_command(
-            key=key,
-            state=power,
-            color_mode=color_mode,
-            rgb=rgb,
-            color_temperature=color_temperature,
-            brightness=brightness,
-            transition_length=0,
-        )
+        client.light_command(**kwargs)
     except APIConnectionError as err:
         LOGGER.warning("Lost connection to ESPHome device %s: %s", host, err)
         _clients.pop(host, None)
         _light_keys.pop(host, None)
+        _light_caps.pop(host, None)
         _log_inactive(host)
         return False
     return True
@@ -178,4 +250,5 @@ async def async_close_all() -> None:
             )
     _clients.clear()
     _light_keys.clear()
+    _light_caps.clear()
     _logged_inactive.clear()
