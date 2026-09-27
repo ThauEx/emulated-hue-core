@@ -622,14 +622,21 @@ class HueApiV1Endpoints:
 
             sat = request_data.get(const.HUE_ATTR_SAT)
             hue = request_data.get(const.HUE_ATTR_HUE)
-            if sat and hue:
-                hue = wrap_number(hue, 0, const.HUE_ATTR_HUE_MAX)
-                sat = wrap_number(sat, 0, const.HUE_ATTR_SAT_MAX)
-                # Convert hs values to hass hs values
-                hue = int((hue / const.HUE_ATTR_HUE_MAX) * 360)
-                sat = int((sat / const.HUE_ATTR_SAT_MAX) * 100)
-                with contextlib.suppress(AttributeError):
-                    call.set_hue_sat(hue, sat)
+            # Use "is not None" rather than truthiness: hue=0 (red) and
+            # sat=0 (fully desaturated) are valid values that a plain
+            # "if sat and hue:" would silently drop.
+            if sat is not None and hue is not None:
+                try:
+                    hue = wrap_number(float(hue), 0, const.HUE_ATTR_HUE_MAX)
+                    sat = wrap_number(float(sat), 0, const.HUE_ATTR_SAT_MAX)
+                except (TypeError, ValueError):
+                    LOGGER.warning("Invalid hue/sat value in request: %s/%s", hue, sat)
+                else:
+                    # Convert hs values to hass hs values
+                    hue = int((hue / const.HUE_ATTR_HUE_MAX) * 360)
+                    sat = int((sat / const.HUE_ATTR_SAT_MAX) * 100)
+                    with contextlib.suppress(AttributeError):
+                        call.set_hue_sat(hue, sat)
 
             if color_temp := request_data.get(const.HUE_ATTR_CT):
                 call.set_color_temperature(color_temp)
