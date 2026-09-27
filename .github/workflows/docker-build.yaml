@@ -39,7 +39,7 @@ jobs:
         if: ${{ startsWith(github.ref, 'refs/heads/') }}
         run: |
           set -x
-          docker build \
+          docker buildx build \
             --build-arg HASS_ARCH=${{ matrix.hass_arch }} \
             --build-arg BUILD_VERSION=${GITHUB_REF##*/}-${{ github.run_number }} \
             --tag ci:${{ github.run_number }} \
@@ -56,7 +56,7 @@ jobs:
         if: ${{ startsWith(github.ref, 'refs/tags/') }}
         run: |
           set -x
-          docker build \
+          docker buildx build \
             --build-arg HASS_ARCH=${{ matrix.hass_arch }} \
             --build-arg BUILD_VERSION=${GITHUB_REF##*/} \
             --tag ci:${{ github.run_number }} \
