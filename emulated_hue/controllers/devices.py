@@ -353,7 +353,7 @@ class OnOffDevice:
         return await esphome_direct.async_send_light_state(
             host=esphome_host,
             port=self._config.get("esphome_port") or config_instance.esphome_port,
-            noise_psk=self._config.get("esphome_password")
+            credential=self._config.get("esphome_password")
             or config_instance.esphome_password,
             object_id=self._config.get("esphome_object_id"),
             power=control_state.power_state,

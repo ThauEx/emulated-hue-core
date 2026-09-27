@@ -9,9 +9,10 @@ device. For lights that have esphome_host/esphome_port/esphome_password set
 we instead talk to the device directly over the ESPHome native API - the
 same protocol Home Assistant itself uses - which skips that pipeline and
 lets us apply our own colour conversion instead of HA's generic xy->RGB
-conversion. esphome_password holds the device's `api: encryption: key:`
-(Noise PSK), not a plaintext password - ESPHome removed plaintext API
-passwords in 2026.1.0.
+conversion. esphome_password holds either the device's legacy plaintext API
+password, or (for ESPHome 2026.1.0+, which removed plaintext passwords) its
+`api: encryption: key:` Noise PSK - we detect which one it is automatically
+(see _split_credential), so either kind of device works without extra config.
 
 Connections are cached per host for the lifetime of the process (closed via
 async_close_all() on app shutdown) since both the entertainment path and
@@ -20,6 +21,8 @@ the classic per-light path share them.
 Callers should treat a False return as "not available right now" and fall
 back to the existing Home Assistant path; nothing here raises.
 """
+import base64
+import binascii
 import logging
 
 from aioesphomeapi import APIClient, APIConnectionError, ColorMode, LightInfo
@@ -45,16 +48,32 @@ def _log_inactive(host: str) -> None:
         _logged_inactive.add(host)
 
 
+def _split_credential(credential: str) -> tuple[str | None, str | None]:
+    """
+    Return (password, noise_psk), whichever the credential actually is.
+
+    A Noise PSK is always base64 of exactly 32 raw bytes (ESPHome's
+    `api: encryption: key:`); anything else is treated as a legacy plaintext
+    API password (pre-2026.1.0 devices).
+    """
+    if not credential:
+        return None, None
+    try:
+        if len(base64.b64decode(credential, validate=True)) == 32:
+            return None, credential
+    except (binascii.Error, ValueError):
+        pass
+    return credential, None
+
+
 async def _async_get_ready_client(
-    host: str, port: int, noise_psk: str, object_id: str | None
+    host: str, port: int, credential: str, object_id: str | None
 ) -> tuple[APIClient, int] | None:
     """Return a connected client plus the resolved light entity key."""
     client = _clients.get(host)
     if client is None:
-        # ESPHome removed plaintext API passwords in 2026.1.0; every current
-        # device uses Noise encryption instead, so esphome_password now holds
-        # the base64 `api: encryption: key:` value, not a plaintext password.
-        client = APIClient(host, port, password=None, noise_psk=noise_psk or None)
+        password, noise_psk = _split_credential(credential)
+        client = APIClient(host, port, password=password, noise_psk=noise_psk)
         _clients[host] = client
 
     if host not in _light_keys:
@@ -101,7 +120,7 @@ async def async_send_light_state(
     *,
     host: str,
     port: int,
-    noise_psk: str,
+    credential: str,
     object_id: str | None = None,
     power: bool = True,
     rgb: tuple[float, float, float] | None = None,
@@ -111,13 +130,15 @@ async def async_send_light_state(
     """
     Send a light state directly to an ESPHome light.
 
-    rgb channels and brightness are 0-1 floats, color_temperature is in mireds
-    (matching what the ESPHome native API expects). Only one of rgb /
-    color_temperature should be given; omit both for a plain on/off or
-    brightness-only change. Returns True on success, False if the device
-    isn't reachable right now (caller should fall back).
+    `credential` is whatever the device needs to authenticate - either a
+    legacy plaintext API password or a Noise PSK, auto-detected (see
+    _split_credential). rgb channels and brightness are 0-1 floats,
+    color_temperature is in mireds (matching what the ESPHome native API
+    expects). Only one of rgb / color_temperature should be given; omit both
+    for a plain on/off or brightness-only change. Returns True on success,
+    False if the device isn't reachable right now (caller should fall back).
     """
-    ready = await _async_get_ready_client(host, port, noise_psk, object_id)
+    ready = await _async_get_ready_client(host, port, credential, object_id)
     if ready is None:
         return False
     client, key = ready
