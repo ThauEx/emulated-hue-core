@@ -101,4 +101,4 @@ class EntityState(BaseModel):
         return EntityState(**save_state)
 
 
-ALL_STATES: list = list(vars(EntityState).get("__fields__"))
+ALL_STATES: list = list(EntityState.model_fields)
