@@ -63,6 +63,11 @@ async def _async_get_ready_client(
             LOGGER.warning("No light entity found on ESPHome device %s", host)
             return None
         _light_keys[host] = light.key
+        LOGGER.info(
+            "Direct ESPHome entertainment path active for %s (light %s)",
+            host,
+            light.object_id,
+        )
 
     return client, _light_keys[host]
 
