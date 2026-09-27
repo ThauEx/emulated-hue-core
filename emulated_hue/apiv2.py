@@ -294,16 +294,19 @@ class HueApiV2Endpoints:
     @routes.get("/clip/v2/resource/bridge")
     @check_request_v2
     async def async_get_bridges(self, request: web.Request, token: str):
+        """Return the (single) bridge resource."""
         return send_json_response(_envelope(await self._async_bridge_resource()))
 
     @routes.get("/clip/v2/resource/bridge/{id}")
     @check_request_v2
     async def async_get_bridge(self, request: web.Request, token: str):
+        """Return the bridge resource by id (there's only ever one)."""
         return send_json_response(_envelope(await self._async_bridge_resource()))
 
     @routes.get("/clip/v2/resource/device")
     @check_request_v2
     async def async_get_devices(self, request: web.Request, token: str):
+        """Return the bridge device plus one device per light."""
         data = [await self._async_bridge_device_resource()]
         for light_id, light_conf in (await self._async_light_ids()).items():
             data.append(await self._async_light_device_resource(light_id, light_conf))
@@ -312,6 +315,7 @@ class HueApiV2Endpoints:
     @routes.get("/clip/v2/resource/light")
     @check_request_v2
     async def async_get_lights(self, request: web.Request, token: str):
+        """Return all lights known to v1 storage, projected as v2 resources."""
         data = [
             await self._async_light_resource(light_id, light_conf)
             for light_id, light_conf in (await self._async_light_ids()).items()
@@ -321,6 +325,7 @@ class HueApiV2Endpoints:
     @routes.get("/clip/v2/resource/light/{id}")
     @check_request_v2
     async def async_get_light(self, request: web.Request, token: str):
+        """Return a single light resource by its v2 id."""
         resource_id = request.match_info["id"]
         for light_id, light_conf in (await self._async_light_ids()).items():
             if _v2_id("light", light_id) == resource_id:
@@ -332,6 +337,7 @@ class HueApiV2Endpoints:
     @routes.get("/clip/v2/resource/entertainment")
     @check_request_v2
     async def async_get_entertainment_resources(self, request: web.Request, token: str):
+        """Return the per-light and bridge-level entertainment capability resources."""
         data = [await self._async_entertainment_bridge_resource()]
         for light_id in await self._async_light_ids():
             data.append(await self._async_entertainment_light_resource(light_id))
@@ -342,6 +348,7 @@ class HueApiV2Endpoints:
     async def async_get_entertainment_configurations(
         self, request: web.Request, token: str
     ):
+        """Return all entertainment_configuration resources (v1 Entertainment groups)."""
         data = [
             await self._async_entertainment_configuration_resource(group_id, group_conf)
             for group_id, group_conf in (await self._async_groups()).items()
@@ -354,6 +361,7 @@ class HueApiV2Endpoints:
     async def async_get_entertainment_configuration(
         self, request: web.Request, token: str
     ):
+        """Return a single entertainment_configuration resource by id."""
         group_id, group_conf = await self._async_find_group_by_v2_id(
             request.match_info["id"]
         )
@@ -372,6 +380,7 @@ class HueApiV2Endpoints:
     async def async_create_entertainment_configuration(
         self, request: web.Request, request_data: dict, token: str
     ):
+        """Create a new v1 Entertainment group from a v2 entertainment_configuration body."""
         light_ids = []
         for channel in request_data.get("channels", []):
             for member in channel.get("members", []):
@@ -410,6 +419,7 @@ class HueApiV2Endpoints:
     async def async_update_entertainment_configuration(
         self, request: web.Request, request_data: dict, token: str
     ):
+        """Update metadata, or start/stop streaming via the "action" field."""
         group_id, group_conf = await self._async_find_group_by_v2_id(
             request.match_info["id"]
         )
@@ -454,6 +464,7 @@ class HueApiV2Endpoints:
     async def async_delete_entertainment_configuration(
         self, request: web.Request, token: str
     ):
+        """Delete the underlying v1 Entertainment group."""
         group_id, group_conf = await self._async_find_group_by_v2_id(
             request.match_info["id"]
         )

@@ -48,3 +48,7 @@ max-branches=25
 max-returns=15
 max-args=10
 max-statements=50
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
