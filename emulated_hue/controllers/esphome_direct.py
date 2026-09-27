@@ -1,14 +1,19 @@
 """
-Direct ESPHome native-API path for entertainment streaming.
+Direct ESPHome native-API path for light control.
 
-Hue Entertainment mode calls into Home Assistant for every light on every
-frame (25-50Hz), which normally goes through HA's websocket service-call
-pipeline (state machine, event bus, then the ESPHome integration) before it
-reaches the device. For lights that have esphome_host/esphome_port/
-esphome_password set in their light config (in emulated_hue.json), we instead
-talk to the device directly over the ESPHome native API - the same protocol
-Home Assistant itself uses - which skips that pipeline and lets us apply our
-own colour conversion instead of HA's generic xy->RGB conversion.
+Both Hue Entertainment streaming and plain classic-API light control
+normally go through Home Assistant's websocket service-call pipeline (state
+machine, event bus, then the ESPHome integration) before reaching the
+device. For lights that have esphome_host/esphome_port/esphome_password set
+(in their light config in emulated_hue.json, or as an add-on-wide default),
+we instead talk to the device directly over the ESPHome native API - the
+same protocol Home Assistant itself uses - which skips that pipeline and
+lets us apply our own colour conversion instead of HA's generic xy->RGB
+conversion.
+
+Connections are cached per host for the lifetime of the process (closed via
+async_close_all() on app shutdown) since both the entertainment path and
+the classic per-light path share them.
 
 Callers should treat a False return as "not available right now" and fall
 back to the existing Home Assistant path; nothing here raises.
@@ -72,33 +77,40 @@ async def _async_get_ready_client(
     return client, _light_keys[host]
 
 
-async def async_send_color(
+async def async_send_light_state(
     *,
     host: str,
     port: int,
     password: str,
     object_id: str | None = None,
+    power: bool = True,
     rgb: tuple[float, float, float] | None = None,
     color_temperature: float | None = None,
     brightness: float | None = None,
 ) -> bool:
     """
-    Send a colour directly to an ESPHome light.
+    Send a light state directly to an ESPHome light.
 
     rgb channels and brightness are 0-1 floats, color_temperature is in mireds
-    (matching what the ESPHome native API expects). Returns True on success,
-    False if the device isn't reachable right now (caller should fall back).
+    (matching what the ESPHome native API expects). Only one of rgb /
+    color_temperature should be given; omit both for a plain on/off or
+    brightness-only change. Returns True on success, False if the device
+    isn't reachable right now (caller should fall back).
     """
     ready = await _async_get_ready_client(host, port, password, object_id)
     if ready is None:
         return False
     client, key = ready
 
-    color_mode = ColorMode.RGB if rgb is not None else ColorMode.COLOR_TEMPERATURE
+    color_mode = None
+    if rgb is not None:
+        color_mode = ColorMode.RGB
+    elif color_temperature is not None:
+        color_mode = ColorMode.COLOR_TEMPERATURE
     try:
         client.light_command(
             key=key,
-            state=True,
+            state=power,
             color_mode=color_mode,
             rgb=rgb,
             color_temperature=color_temperature,

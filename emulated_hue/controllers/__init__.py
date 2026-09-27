@@ -1,7 +1,7 @@
 """Controllers for emulated_hue."""
 import asyncio
 
-from . import scheduler
+from . import esphome_direct, scheduler
 from .config import Config
 from .homeassistant import HomeAssistantController
 from .models import Controller
@@ -41,6 +41,7 @@ async def async_start(
 async def async_stop(ctl: Controller) -> None:
     """Shutdown all controllers."""
     await scheduler.async_stop()
+    await esphome_direct.async_close_all()
     try:
         await ctl.controller_hass.disconnect()
     except AttributeError:

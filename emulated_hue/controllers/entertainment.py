@@ -115,7 +115,6 @@ class EntertainmentAPI:
         self.ctl.loop.create_task(
             self.ctl.controller_hass.set_state(HASS_SENSOR, "off")
         )
-        self.ctl.loop.create_task(esphome_direct.async_close_all())
         LOGGER.info("HUE Entertainment Service stopped.")
 
     async def __process_packet(self, packet: bytes) -> None:
@@ -159,7 +158,7 @@ class EntertainmentAPI:
         # single-ESPHome-light setup needs no emulated_hue.json editing at all.
         config_instance = self.ctl.config_instance
         esphome_host = light_conf.get("esphome_host") or config_instance.esphome_host
-        if esphome_host and await esphome_direct.async_send_color(
+        if esphome_host and await esphome_direct.async_send_light_state(
             host=esphome_host,
             port=light_conf.get("esphome_port") or config_instance.esphome_port,
             password=light_conf.get("esphome_password")

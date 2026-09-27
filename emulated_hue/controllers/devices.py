@@ -10,6 +10,8 @@ from emulated_hue import const
 from emulated_hue.const import ENTERTAINMENT_UPDATE_STATE_UPDATE_RATE
 from emulated_hue.utils import clamp
 
+from . import esphome_direct
+from .color_utils import hs_to_rgb, xy_brightness_to_rgb
 from .models import ALL_STATES, Controller, EntityState
 
 LOGGER = logging.getLogger(__name__)
@@ -306,13 +308,61 @@ class OnOffDevice:
 
         if not await self._async_update_allowed(control_state):
             return
-        if control_state.power_state:
+        if await self._async_maybe_send_esphome_direct(control_state):
+            pass
+        elif control_state.power_state:
             await self.ctl.controller_hass.async_turn_on(
                 self._entity_id, control_state.to_hass_data()
             )
         else:
             await self.ctl.controller_hass.async_turn_off(self._entity_id)
         await self._async_update_config_states(control_state)
+
+    async def _async_maybe_send_esphome_direct(
+        self, control_state: EntityState
+    ) -> bool:
+        """Try sending control_state directly to ESPHome. Returns True if handled."""
+        config_instance = self.ctl.config_instance
+        esphome_host = self._config.get("esphome_host") or config_instance.esphome_host
+        if not esphome_host:
+            return False
+
+        rgb = color_temp = None
+        if control_state.power_state:
+            if control_state.color_mode == const.HASS_COLOR_MODE_RGB and (
+                control_state.rgb_color
+            ):
+                rgb = tuple(c / 255 for c in control_state.rgb_color)
+            elif control_state.color_mode == const.HASS_COLOR_MODE_XY and (
+                control_state.xy_color
+            ):
+                rgb = xy_brightness_to_rgb(
+                    *control_state.xy_color,
+                    (control_state.brightness or 255) / 255,
+                    self._config.get("esphome_gamut"),
+                )
+            elif control_state.color_mode == const.HASS_COLOR_MODE_HS and (
+                control_state.hue_saturation
+            ):
+                rgb = hs_to_rgb(*control_state.hue_saturation)
+            elif control_state.color_mode == const.HASS_COLOR_MODE_COLOR_TEMP and (
+                control_state.color_temp
+            ):
+                color_temp = control_state.color_temp
+
+        return await esphome_direct.async_send_light_state(
+            host=esphome_host,
+            port=self._config.get("esphome_port") or config_instance.esphome_port,
+            password=self._config.get("esphome_password")
+            or config_instance.esphome_password,
+            object_id=self._config.get("esphome_object_id"),
+            power=control_state.power_state,
+            rgb=rgb,
+            color_temperature=color_temp,
+            brightness=(control_state.brightness / 255)
+            if control_state.brightness
+            else None,
+        )
 
 
 class BrightnessDevice(OnOffDevice):

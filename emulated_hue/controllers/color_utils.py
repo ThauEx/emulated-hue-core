@@ -1,13 +1,13 @@
 """
-Colour conversion helpers for the entertainment streaming path.
+Colour conversion helpers for the direct ESPHome path (see esphome_direct.py).
 
-Home Assistant would otherwise convert the CIE xy values a Hue Entertainment
-stream sends into RGB itself, using a generic sRGB gamut assumption that
+Home Assistant would otherwise convert the CIE xy/hue-saturation values a
+Hue client sends into RGB itself, using a generic sRGB gamut assumption that
 doesn't match any particular LED strip's real output. Doing the conversion
-here instead lets the direct ESPHome path (see esphome_direct.py) use a
-gamut tuned to the actual light - the same thing a real Hue light does
-internally with its own factory-calibrated gamut.
+here instead lets us use a gamut tuned to the actual light - the same thing
+a real Hue light does internally with its own factory-calibrated gamut.
 """
+import colorsys
 
 # Default XYZ->RGB matrix, the one most open source Hue client
 # implementations use for a typical wide-gamut RGB strip. Override per light
@@ -54,3 +54,10 @@ def xy_brightness_to_rgb(
         rgb = [c / highest for c in rgb]
 
     return tuple(max(0.0, c) for c in rgb)
+
+
+def hs_to_rgb(hue_deg: float, sat_pct: float) -> tuple[float, float, float]:
+    """Convert HA's hs_color (hue 0-360 degrees, saturation 0-100 percent) to 0-1 RGB."""
+    return colorsys.hsv_to_rgb(
+        (hue_deg % 360) / 360.0, max(0.0, min(sat_pct, 100.0)) / 100.0, 1.0
+    )
