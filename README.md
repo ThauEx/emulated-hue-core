@@ -1,17 +1,25 @@
-<a href="https://github.com/hass-emulated-hue/core/actions"><img alt="GitHub Actions Build" src="https://github.com/hass-emulated-hue/core/actions/workflows/docker-build.yaml/badge.svg"></a>
-<a href="https://hub.docker.com/r/hassemulatedhue/core"><img alt="Docker Pulls" src="https://img.shields.io/docker/pulls/hassemulatedhue/core.svg"></a>
-# Hue Emulation for Home Assistant
+<a href="https://github.com/ThauEx/emulated-hue-core/actions"><img alt="GitHub Actions Build" src="https://github.com/ThauEx/emulated-hue-core/actions/workflows/docker-build.yaml/badge.svg"></a>
+# Hue Emulation for Home Assistant (ThauEx fork)
 
 Convert your Home Assistant instance to a fully functional Philips HUE bridge!
 Control all lights connected to your Home Assistant box with HUE compatible apps/devices like the official Hue app, Hue essentials and Philips Ambilight+Hue etc.
+
+## About this fork
+
+Fork of the original [hass-emulated-hue/core](https://github.com/hass-emulated-hue/core) (inactive since July 2023), created to fix a real Ambilight+Hue color-accuracy/latency problem: the upstream project only ever talks to lights through Home Assistant's normal service-call pipeline, adding overhead and relying on HA's generic (non-gamut-corrected) color conversion. On top of a batch of real upstream bugs found and fixed along the way (see git history), this fork adds:
+
+- **A direct ESPHome native-API path** (`emulated_hue/controllers/esphome_direct.py`): for lights that set `esphome_host` (either per-light in `emulated_hue.json`, or as an add-on-wide default in the add-on's Configuration tab), commands go straight to the ESPHome device over the same native API Home Assistant itself uses - skipping HA's service-call pipeline entirely, with our own gamut-correct color conversion instead of HA's generic one. Works for both the classic per-light API (`PUT /api/.../lights/{id}/state`) and Hue Entertainment streaming, and auto-detects the device's actual supported color modes (so it works whether the ESPHome light is a plain RGB/CT platform or a combined-channel one like the built-in `rgbww`). Supports both legacy plaintext API passwords and ESPHome 2026.1.0+'s Noise PSK encryption, auto-detected.
+- **A CLIP v2 API** (`emulated_hue/apiv2.py`, `/clip/v2/resource/...`): modern Hue clients (including current-generation Ambilight+Hue TV firmware) set up real Entertainment (DTLS/UDP) streaming through CLIP v2's `entertainment_configuration` resource rather than the legacy v1 group mechanism, which this bridge didn't implement at all before. It's a thin routing/JSON-shape layer over the *same* v1 storage and Entertainment engine - no parallel data model. Scoped to what Entertainment needs (`bridge`, `device`, `light`, `entertainment`, `entertainment_configuration`); deliberately doesn't implement the `/eventstream/clip/v2` SSE endpoint (confirmed unnecessary for Entertainment specifically) or non-Entertainment v2 resources (rooms/zones/scenes/etc).
+
+None of this requires re-pairing or changes your existing v1 setup - both APIs run side by side.
 
 ## Features
 - Your Areas in Home Assistant will be auto created as rooms in the HUE app.
 - All your Home Assistant lights will be supported with full functionality.
 - Allow you to create your own HUE groups and scenes.
 - Secured connection and authentication flow (unlike default emulated hue component in hass).
-- Fully emulates a "V2" HUE bridge.
-- Loosely coupled with HomeAssistant over low-latency websockets.
+- Fully emulates a "V2" HUE bridge, including the CLIP v2 API for Entertainment.
+- Loosely coupled with HomeAssistant over low-latency websockets (or, for ESPHome lights with `esphome_host` set, direct to the device).
 - Experimental support for HUE Entertainment (see below).
 
 ## Use cases
@@ -20,10 +28,19 @@ Control all lights connected to your Home Assistant box with HUE compatible apps
 - You'd like to sync your lights with your TV/game (e.g. HUE Sync, Ambilight+HUE).
 
 ## How to run/install/use this thing ?
-- Add the custom repository to the Home Assistant supervisor's add-on store: 
-  https://github.com/hass-emulated-hue/hassio-repo
-- Install the Emulated HUE addon from the addon-store
+- Add the custom repository to the Home Assistant supervisor's add-on store:
+  https://github.com/ThauEx/emulated-hue-addons
+- Install the "Emulated HUE (Direct ESPHome)" addon from the addon-store
 - Start the newly installed addon and it will work instantly
+
+## Direct ESPHome path configuration
+
+Set in the add-on's Configuration tab (applies to any light without its own `esphome_host`, i.e. the common single-ESPHome-light case):
+- `esphome_host`: IP/hostname of the ESPHome device.
+- `esphome_port`: native API port, defaults to 6053.
+- `esphome_password`: the device's native API credential - either a legacy plaintext password, or (ESPHome 2026.1.0+) the base64 `api: encryption: key:` Noise PSK. Auto-detected, no need to specify which.
+
+For more than one ESPHome light, stop the add-on, edit `emulated_hue.json` in `/config/hass-emulated-hue/`, and add `esphome_host`/`esphome_port`/`esphome_password`/`esphome_object_id`/`esphome_gamut` to the relevant light's entry under `"lights"` - a light's own value always overrides the add-on-wide default.
 
 Once started, it will be available as a HUE bridge on your network.
 
@@ -41,6 +58,8 @@ Once started, it will be available as a HUE bridge on your network.
 The [Hue Entertainment API](https://developers.meethue.com/develop/hue-entertainment/philips-hue-entertainment-api/) supports a communication protocol which allows a light streaming functionality with the Philips Hue System. Using this protocol, it is possible to stream lighting effects to multiple lights in parallel with a high update rate. It's used for new Ambilight+HUE TV's and the HUE Sync app on PC and Mac.
 
 We've created a (highly experimental!) python implementation of this streaming protocol that actually works pretty well altough not as good as it's original. While packets are indeed live streamed (at a rate between 25-50 messages per second) to our virtual bridge, we unpack them and convert them to commands the light implementations can understand at a more sane rate level (throttling). We choose some settings which result in a nice effect with not too much delay without completely overloading a platform. This means that the Entertainment mode will work with **any light** connected to Home Assistant. Cool! 
+
+**This fork adds the CLIP v2 `entertainment_configuration` API** alongside the legacy v1 mechanism above, since modern Hue clients (including current-generation Ambilight+Hue TV firmware) may only attempt Entertainment setup through v2 - see "About this fork". And for ESPHome lights specifically, the direct ESPHome path means those "commands the light implementations can understand" skip Home Assistant entirely.
 
 The next step we have in mind is, if you own official HUE lights connected to ZHA, to forward the special Entertainment packets into the Zigbee mesh, resulting in the real streaming experience (realtime effects with no delay). 
 
