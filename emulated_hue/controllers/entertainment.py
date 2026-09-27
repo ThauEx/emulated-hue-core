@@ -161,7 +161,7 @@ class EntertainmentAPI:
         if esphome_host and await esphome_direct.async_send_light_state(
             host=esphome_host,
             port=light_conf.get("esphome_port") or config_instance.esphome_port,
-            password=light_conf.get("esphome_password")
+            noise_psk=light_conf.get("esphome_password")
             or config_instance.esphome_password,
             object_id=light_conf.get("esphome_object_id"),
             rgb=rgb,

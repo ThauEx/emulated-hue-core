@@ -9,7 +9,9 @@ device. For lights that have esphome_host/esphome_port/esphome_password set
 we instead talk to the device directly over the ESPHome native API - the
 same protocol Home Assistant itself uses - which skips that pipeline and
 lets us apply our own colour conversion instead of HA's generic xy->RGB
-conversion.
+conversion. esphome_password holds the device's `api: encryption: key:`
+(Noise PSK), not a plaintext password - ESPHome removed plaintext API
+passwords in 2026.1.0.
 
 Connections are cached per host for the lifetime of the process (closed via
 async_close_all() on app shutdown) since both the entertainment path and
@@ -44,12 +46,15 @@ def _log_inactive(host: str) -> None:
 
 
 async def _async_get_ready_client(
-    host: str, port: int, password: str, object_id: str | None
+    host: str, port: int, noise_psk: str, object_id: str | None
 ) -> tuple[APIClient, int] | None:
     """Return a connected client plus the resolved light entity key."""
     client = _clients.get(host)
     if client is None:
-        client = APIClient(host, port, password)
+        # ESPHome removed plaintext API passwords in 2026.1.0; every current
+        # device uses Noise encryption instead, so esphome_password now holds
+        # the base64 `api: encryption: key:` value, not a plaintext password.
+        client = APIClient(host, port, password=None, noise_psk=noise_psk or None)
         _clients[host] = client
 
     if host not in _light_keys:
@@ -96,7 +101,7 @@ async def async_send_light_state(
     *,
     host: str,
     port: int,
-    password: str,
+    noise_psk: str,
     object_id: str | None = None,
     power: bool = True,
     rgb: tuple[float, float, float] | None = None,
@@ -112,7 +117,7 @@ async def async_send_light_state(
     brightness-only change. Returns True on success, False if the device
     isn't reachable right now (caller should fall back).
     """
-    ready = await _async_get_ready_client(host, port, password, object_id)
+    ready = await _async_get_ready_client(host, port, noise_psk, object_id)
     if ready is None:
         return False
     client, key = ready
