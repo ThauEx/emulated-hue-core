@@ -49,6 +49,11 @@ max-returns=15
 max-args=10
 max-statements=50
 
+[tool.ruff.per-file-ignores]
+# Test names document intent; requiring a docstring on every one-liner test
+# is more noise than signal.
+"tests/*" = ["D"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
