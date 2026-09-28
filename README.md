@@ -1,5 +1,5 @@
 <a href="https://github.com/ThauEx/emulated-hue-core/actions"><img alt="GitHub Actions Build" src="https://github.com/ThauEx/emulated-hue-core/actions/workflows/docker-build.yaml/badge.svg"></a>
-# Hue Emulation for Home Assistant (ThauEx fork)
+# Hue Emulation for Home Assistant
 
 Convert your Home Assistant instance to a fully functional Philips HUE bridge!
 Control all lights connected to your Home Assistant box with HUE compatible apps/devices like the official Hue app, Hue essentials and Philips Ambilight+Hue etc.
