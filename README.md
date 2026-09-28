@@ -89,6 +89,8 @@ You can also delete a light in the HUE app. That will also mark the light as dis
 
 Entertainment mode is heavy. It will send multiple commands per second to each light. If you hardware can't cope up with this we have an advanced little setting hidden in the above mentioned emulated_hue.json config file called "entertainment_throttle". Set a value (in milliseconds) to throttle requests to this light. A good value to start with is 500. Remember to stop the addon before you start editing this file.
 
+For ESPHome lights using the direct path (see "About this fork"), this only halves the problem: sending commands now skips Home Assistant entirely, so the *outgoing* overhead is gone. But ESPHome always broadcasts a light's state to every connected native-API client, including Home Assistant's own normal connection to that device - so HA's event bus/recorder/history still see the same volume of state-change updates as before, regardless of who actually issued the command. `entertainment_throttle` still helps with that side of it.
+
 
 
 #### I run Home Assistant manually without all the supervisor stuff, can I still run this thing ?
