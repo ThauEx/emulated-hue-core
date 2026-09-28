@@ -45,15 +45,28 @@ def _error(description: str) -> dict:
     return {"errors": [{"description": description}], "data": []}
 
 
+_logged_first_v2_request = False
+
+
 def check_request_v2(func):
     """Validate the hue-application-key header (the same token v1 calls "username")."""
 
     @functools.wraps(func)
     async def wrapped_func(cls: "HueApiV2Endpoints", request: web.Request):
+        global _logged_first_v2_request  # noqa: PLW0603
+        LOGGER.debug("[%s] %s %s", request.remote, request.method, request.path)
         token = request.headers.get("hue-application-key", "")
         if not token or not await cls.ctl.config_instance.async_get_user(token):
             LOGGER.debug("[%s] Invalid hue-application-key", request.remote)
             return send_json_response(_error("unauthorized user"))
+        if not _logged_first_v2_request:
+            LOGGER.info(
+                "CLIP v2 API in use: [%s] %s %s",
+                request.remote,
+                request.method,
+                request.path,
+            )
+            _logged_first_v2_request = True
         if request.method in ("PUT", "POST"):
             try:
                 request_data = await request.json()
