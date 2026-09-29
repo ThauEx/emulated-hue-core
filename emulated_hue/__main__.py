@@ -1,7 +1,6 @@
 """Emulated Hue quick start."""
 import argparse
 import asyncio
-import json
 import logging
 import os
 import traceback
@@ -106,15 +105,6 @@ if __name__ == "__main__":
         help="Default WiZ UDP control port for the direct entertainment path",
         default=os.getenv("WIZ_PORT", "38899"),
     )
-    parser.add_argument(
-        "--lights-json",
-        type=str,
-        help="JSON list of per-light direct-path overrides from the add-on's "
-        "'lights' config list, each a {entity_id, type, host, port, "
-        "password, object_id} dict",
-        default=os.getenv("LIGHTS_JSON", "[]"),
-    )
-
     args = parser.parse_args()
     datapath = args.data
     url = args.url
@@ -129,12 +119,6 @@ if __name__ == "__main__":
         use_default_ports = True
     # turn down logging for hass-client
     logging.getLogger("hass_client").setLevel(logging.INFO)
-
-    try:
-        light_overrides = json.loads(args.lights_json)
-    except json.JSONDecodeError:
-        logger.warning("Could not parse --lights-json, ignoring: %r", args.lights_json)
-        light_overrides = []
 
     direct_path = DirectPathConfig(
         esphome_host=args.esphome_host,
@@ -151,7 +135,6 @@ if __name__ == "__main__":
         args.https_port,
         use_default_ports,
         direct_path,
-        light_overrides,
     )
 
     def on_shutdown(loop):

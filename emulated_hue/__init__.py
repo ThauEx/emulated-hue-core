@@ -21,7 +21,6 @@ class HueEmulator:
         https_port: int,
         use_default_ports: bool,
         direct_path: DirectPathConfig | None = None,
-        light_overrides: list[dict] | None = None,
     ) -> None:
         """Create an instance of HueEmulator."""
         self.ctl: controllers.Controller | None = None
@@ -31,7 +30,6 @@ class HueEmulator:
             https_port,
             use_default_ports,
             direct_path,
-            light_overrides,
         )
         self._hass_url = hass_url
         self._hass_token = hass_token

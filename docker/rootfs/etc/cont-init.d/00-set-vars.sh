@@ -56,8 +56,4 @@ if bashio::fs.file_exists '/data/options.json'; then
       echo $(bashio::config 'wiz_port') > /run/s6/container_environment/WIZ_PORT
   fi
 
-  if bashio::config.has_value 'lights'; then
-      bashio::config 'lights' > /run/s6/container_environment/LIGHTS_JSON
-  fi
-
 fi

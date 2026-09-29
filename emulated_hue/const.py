@@ -83,6 +83,10 @@ HUE = "hue"
 
 HUE_HTTP_PORT = 80
 HUE_HTTPS_PORT = 443
+# Not user-configurable - must match the "ingress_port" hardcoded in the
+# add-on's config.json, since Supervisor's ingress proxy needs to know it
+# ahead of time (it's not something we can pass in via options/env).
+HUE_INGRESS_PORT = 8880
 
 # New const
 HASS_DOMAIN_HOMEASSISTANT = "homeassistant"

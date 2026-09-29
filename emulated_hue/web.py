@@ -8,7 +8,9 @@ from aiohttp import web
 
 from emulated_hue.apiv1 import HueApiV1Endpoints
 from emulated_hue.apiv2 import HueApiV2Endpoints
+from emulated_hue.const import HUE_INGRESS_PORT
 from emulated_hue.controllers import Controller
+from emulated_hue.ingress import HueIngressEndpoints
 from emulated_hue.ssl_cert import async_generate_selfsigned_cert, check_certificate
 
 if TYPE_CHECKING:
@@ -31,8 +33,10 @@ class HueWeb:
         self.ctl: Controller = ctl
         self.v1_api = HueApiV1Endpoints(ctl)
         self.v2_api = HueApiV2Endpoints(ctl)
+        self.ingress_api = HueIngressEndpoints(ctl)
         self.http_site: web.TCPSite | None = None
         self.https_site: web.TCPSite | None = None
+        self.ingress_site: web.TCPSite | None = None
 
     async def async_setup(self):
         """Async set-up of the webserver."""
@@ -90,9 +94,30 @@ class HueWeb:
                 error,
             )
 
+        # Separate app/site for the ingress panel - kept off the main Hue
+        # API app since it's plain HTTP only reachable through Supervisor's
+        # ingress proxy, not part of the Hue protocol surface.
+        ingress_app = web.Application()
+        ingress_app.add_routes(self.ingress_api.route)
+        ingress_runner = web.AppRunner(ingress_app, access_log=None)
+        await ingress_runner.setup()
+        self.ingress_site = web.TCPSite(ingress_runner, port=HUE_INGRESS_PORT)
+        try:
+            await self.ingress_site.start()
+            LOGGER.info("Started ingress webserver on port %s", HUE_INGRESS_PORT)
+        except OSError as error:
+            LOGGER.error(
+                "Failed to create ingress server at port %d: %s",
+                HUE_INGRESS_PORT,
+                error,
+            )
+
     async def async_stop(self):
         """Stop the webserver."""
         await self.http_site.stop()
         await self.https_site.stop()
+        if self.ingress_site is not None:
+            await self.ingress_site.stop()
         await self.v1_api.async_stop()
         await self.v2_api.async_stop()
+        await self.ingress_api.async_stop()

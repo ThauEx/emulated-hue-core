@@ -25,6 +25,7 @@ from .models import Controller
 LOGGER = logging.getLogger(__name__)
 
 CONFIG_FILE = "emulated_hue.json"
+LINK_MODE_DURATION_SECONDS = 300
 DEFINITIONS_FILE = os.path.join(
     os.path.dirname(Path(__file__).parent.absolute()), "definitions.json"
 )
@@ -87,6 +88,7 @@ class Config:
         self._config = load_json(self.get_path(CONFIG_FILE))
         self._definitions = load_json(DEFINITIONS_FILE)
         self._link_mode_enabled = False
+        self._link_mode_expires_at: float | None = None
         self._link_mode_discovery_key = None
 
         # Get the IP address that will be passed to during discovery
@@ -239,38 +241,6 @@ class Config:
         }
         await self.async_set_storage_value("lights", next_light_id, light_config)
         return next_light_id
-
-    async def async_apply_light_overrides(self, overrides: list[dict]) -> None:
-        """
-        Merge add-on-UI per-light direct-path settings into emulated_hue.json.
-
-        `overrides` comes from the add-on's repeatable "lights" config list
-        (Configuration tab), one dict per row: {entity_id, type
-        ("esphome"/"wiz"), host, port?, password?, object_id?}. Applied at
-        every startup, so editing/removing a row here always wins over
-        whatever was previously written - this is the supported way to set a
-        light's direct-path target, replacing manual emulated_hue.json edits.
-        """
-        for override in overrides:
-            entity_id = override.get("entity_id")
-            host = override.get("host")
-            if not entity_id or not host:
-                continue
-            light_id = await self.async_entity_id_to_light_id(entity_id)
-            light_conf = await self.async_get_light_config(light_id)
-            if override.get("type") == "wiz":
-                light_conf["wiz_host"] = host
-                if override.get("port"):
-                    light_conf["wiz_port"] = override["port"]
-            else:
-                light_conf["esphome_host"] = host
-                if override.get("port"):
-                    light_conf["esphome_port"] = override["port"]
-                if override.get("password"):
-                    light_conf["esphome_password"] = override["password"]
-                if override.get("object_id"):
-                    light_conf["esphome_object_id"] = override["object_id"]
-            await self.async_set_storage_value("lights", light_id, light_conf)
 
     async def async_get_light_config(self, light_id: str) -> dict:
         """Return light config for given light id."""
@@ -433,17 +403,30 @@ class Config:
         if self._link_mode_enabled:
             return  # already enabled
         self._link_mode_enabled = True
+        self._link_mode_expires_at = (
+            datetime.datetime.now().timestamp() + LINK_MODE_DURATION_SECONDS
+        )
 
         def auto_disable():
             self.ctl.loop.create_task(self.async_disable_link_mode())
 
-        self.ctl.loop.call_later(300, auto_disable)
+        self.ctl.loop.call_later(LINK_MODE_DURATION_SECONDS, auto_disable)
         LOGGER.info("Link mode is enabled for the next 5 minutes.")
 
     async def async_disable_link_mode(self) -> None:
         """Disable link mode on the virtual bridge."""
         self._link_mode_enabled = False
+        self._link_mode_expires_at = None
         LOGGER.info("Link mode is disabled.")
+
+    @property
+    def link_mode_seconds_remaining(self) -> int:
+        """Return seconds left in the current link-mode window, 0 if inactive."""
+        if not self._link_mode_enabled or not self._link_mode_expires_at:
+            return 0
+        return max(
+            0, round(self._link_mode_expires_at - datetime.datetime.now().timestamp())
+        )
 
     async def async_enable_link_mode_discovery(self) -> None:
         """Enable link mode discovery (notification) for the duration of 5 minutes."""

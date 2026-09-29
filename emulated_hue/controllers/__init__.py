@@ -16,7 +16,6 @@ async def async_start(
     https_port,
     use_default_ports,
     direct_path: DirectPathConfig | None = None,
-    light_overrides=None,
 ) -> Controller:
     """Initialize all controllers."""
     ctl = Controller()
@@ -32,8 +31,6 @@ async def async_start(
         direct_path,
     )
     await ctl.controller_hass.connect()
-    if light_overrides:
-        await ctl.config_instance.async_apply_light_overrides(light_overrides)
     return ctl
 
 
