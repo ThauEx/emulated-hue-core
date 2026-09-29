@@ -43,6 +43,7 @@ class EntertainmentAPI:
         self._timestamps = {}
         self._prev_data = {}
         self._user_details = user_details
+        self._received_first_frame = False
         self.ctl.loop.create_task(self.async_run())
 
         self._pkt_header_begin_size = 9  # HueStream
@@ -121,6 +122,18 @@ class EntertainmentAPI:
         # Ignore first header message
         if len(packet) < self._pkt_header_begin_size + self._pkt_header_protocol_size:
             return
+
+        if not self._received_first_frame:
+            # "Start HUE Entertainment Service" only means our DTLS listener
+            # came up - it says nothing about whether the client actually
+            # completed the handshake and is sending real frames. This
+            # confirms real streamed data is arriving, not just a listening
+            # socket.
+            LOGGER.info(
+                "Entertainment stream: first frame received for group %s",
+                self.group_details.get("name"),
+            )
+            self._received_first_frame = True
 
         version = packet[9]
         color_space = COLOR_TYPE_RGB if packet[14] == 0 else COLOR_TYPE_XY_BR
