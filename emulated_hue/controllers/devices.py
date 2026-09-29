@@ -10,7 +10,7 @@ from emulated_hue import const
 from emulated_hue.const import ENTERTAINMENT_UPDATE_STATE_UPDATE_RATE
 from emulated_hue.utils import clamp
 
-from . import esphome_direct
+from . import esphome_direct, wiz_direct
 from .color_utils import hs_to_rgb, xy_brightness_to_rgb
 from .models import ALL_STATES, Controller, EntityState
 
@@ -308,7 +308,7 @@ class OnOffDevice:
 
         if not await self._async_update_allowed(control_state):
             return
-        if await self._async_maybe_send_esphome_direct(control_state):
+        if await self._async_maybe_send_direct(control_state):
             pass
         elif control_state.power_state:
             await self.ctl.controller_hass.async_turn_on(
@@ -318,13 +318,12 @@ class OnOffDevice:
             await self.ctl.controller_hass.async_turn_off(self._entity_id)
         await self._async_update_config_states(control_state)
 
-    async def _async_maybe_send_esphome_direct(
-        self, control_state: EntityState
-    ) -> bool:
-        """Try sending control_state directly to ESPHome. Returns True if handled."""
+    async def _async_maybe_send_direct(self, control_state: EntityState) -> bool:
+        """Try sending control_state directly to ESPHome or WiZ. Returns True if handled."""
         config_instance = self.ctl.config_instance
         esphome_host = self._config.get("esphome_host") or config_instance.esphome_host
-        if not esphome_host:
+        wiz_host = self._config.get("wiz_host") or config_instance.wiz_host
+        if not esphome_host and not wiz_host:
             return False
 
         rgb = color_temp = None
@@ -350,7 +349,11 @@ class OnOffDevice:
             ):
                 color_temp = control_state.color_temp
 
-        return await esphome_direct.async_send_light_state(
+        brightness = (
+            (control_state.brightness / 255) if control_state.brightness else None
+        )
+
+        if esphome_host and await esphome_direct.async_send_light_state(
             host=esphome_host,
             port=self._config.get("esphome_port") or config_instance.esphome_port,
             credential=self._config.get("esphome_password")
@@ -359,10 +362,21 @@ class OnOffDevice:
             power=control_state.power_state,
             rgb=rgb,
             color_temperature=color_temp,
-            brightness=(control_state.brightness / 255)
-            if control_state.brightness
-            else None,
-        )
+            brightness=brightness,
+        ):
+            return True
+
+        if wiz_host and await wiz_direct.async_send_light_state(
+            host=wiz_host,
+            port=self._config.get("wiz_port") or config_instance.wiz_port,
+            power=control_state.power_state,
+            rgb=rgb,
+            color_temperature=color_temp,
+            brightness=brightness,
+        ):
+            return True
+
+        return False
 
 
 class BrightnessDevice(OnOffDevice):

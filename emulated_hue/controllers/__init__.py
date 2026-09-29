@@ -1,8 +1,8 @@
 """Controllers for emulated_hue."""
 import asyncio
 
-from . import esphome_direct, scheduler
-from .config import Config
+from . import esphome_direct, scheduler, wiz_direct
+from .config import Config, DirectPathConfig
 from .homeassistant import HomeAssistantController
 from .models import Controller
 from .scheduler import add_scheduler, remove_scheduler  # noqa
@@ -15,9 +15,8 @@ async def async_start(
     http_port,
     https_port,
     use_default_ports,
-    esphome_host="",
-    esphome_port=6053,
-    esphome_password="",
+    direct_path: DirectPathConfig | None = None,
+    light_overrides=None,
 ) -> Controller:
     """Initialize all controllers."""
     ctl = Controller()
@@ -30,11 +29,11 @@ async def async_start(
         http_port,
         https_port,
         use_default_ports,
-        esphome_host,
-        esphome_port,
-        esphome_password,
+        direct_path,
     )
     await ctl.controller_hass.connect()
+    if light_overrides:
+        await ctl.config_instance.async_apply_light_overrides(light_overrides)
     return ctl
 
 
@@ -42,6 +41,7 @@ async def async_stop(ctl: Controller) -> None:
     """Shutdown all controllers."""
     await scheduler.async_stop()
     await esphome_direct.async_close_all()
+    await wiz_direct.async_close_all()
     try:
         await ctl.controller_hass.disconnect()
     except AttributeError:

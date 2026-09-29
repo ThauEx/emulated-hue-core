@@ -4,6 +4,7 @@ import datetime
 import hashlib
 import logging
 import os
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +30,23 @@ DEFINITIONS_FILE = os.path.join(
 )
 
 
+@dataclass
+class DirectPathConfig:
+    """
+    Add-on-wide defaults for the direct ESPHome/WiZ entertainment paths.
+
+    Bundled into one object (rather than five separate constructor
+    arguments) purely to stay under our ruff max-args limit - these values
+    are only ever passed straight through from CLI args to Config.
+    """
+
+    esphome_host: str = ""
+    esphome_port: int = 6053
+    esphome_password: str = ""
+    wiz_host: str = ""
+    wiz_port: int = 38899
+
+
 class Config:
     """Hold configuration variables for the emulated hue bridge."""
 
@@ -39,24 +57,30 @@ class Config:
         http_port: int,
         https_port: int,
         use_default_ports: bool,
-        esphome_host: str = "",
-        esphome_port: int = 6053,
-        esphome_password: str = "",
+        direct_path: DirectPathConfig | None = None,
     ):
         """Initialize the instance."""
         self.ctl = ctl
         self.data_path = data_path
-        # Default ESPHome native-API target for the direct entertainment path,
-        # used by lights that don't set their own esphome_host in their light
-        # config. A light-level esphome_host always takes precedence.
-        self.esphome_host = esphome_host
-        self.esphome_port = esphome_port
-        self.esphome_password = esphome_password
+        # Default ESPHome/WiZ direct-path targets, used by lights that don't
+        # set their own esphome_host/wiz_host in their light config. A
+        # light-level host always takes precedence over these.
+        direct_path = direct_path or DirectPathConfig()
+        self.esphome_host = direct_path.esphome_host
+        self.esphome_port = direct_path.esphome_port
+        self.esphome_password = direct_path.esphome_password
+        self.wiz_host = direct_path.wiz_host
+        self.wiz_port = direct_path.wiz_port
         LOGGER.info(
             "ESPHome direct-path default: host=%s port=%s password_set=%s",
-            esphome_host or "(none)",
-            esphome_port,
-            bool(esphome_password),
+            self.esphome_host or "(none)",
+            self.esphome_port,
+            bool(self.esphome_password),
+        )
+        LOGGER.info(
+            "WiZ direct-path default: host=%s port=%s",
+            self.wiz_host or "(none)",
+            self.wiz_port,
         )
         if not os.path.isdir(data_path):
             os.mkdir(data_path)
@@ -215,6 +239,38 @@ class Config:
         }
         await self.async_set_storage_value("lights", next_light_id, light_config)
         return next_light_id
+
+    async def async_apply_light_overrides(self, overrides: list[dict]) -> None:
+        """
+        Merge add-on-UI per-light direct-path settings into emulated_hue.json.
+
+        `overrides` comes from the add-on's repeatable "lights" config list
+        (Configuration tab), one dict per row: {entity_id, type
+        ("esphome"/"wiz"), host, port?, password?, object_id?}. Applied at
+        every startup, so editing/removing a row here always wins over
+        whatever was previously written - this is the supported way to set a
+        light's direct-path target, replacing manual emulated_hue.json edits.
+        """
+        for override in overrides:
+            entity_id = override.get("entity_id")
+            host = override.get("host")
+            if not entity_id or not host:
+                continue
+            light_id = await self.async_entity_id_to_light_id(entity_id)
+            light_conf = await self.async_get_light_config(light_id)
+            if override.get("type") == "wiz":
+                light_conf["wiz_host"] = host
+                if override.get("port"):
+                    light_conf["wiz_port"] = override["port"]
+            else:
+                light_conf["esphome_host"] = host
+                if override.get("port"):
+                    light_conf["esphome_port"] = override["port"]
+                if override.get("password"):
+                    light_conf["esphome_password"] = override["password"]
+                if override.get("object_id"):
+                    light_conf["esphome_object_id"] = override["object_id"]
+            await self.async_set_storage_value("lights", light_id, light_conf)
 
     async def async_get_light_config(self, light_id: str) -> dict:
         """Return light config for given light id."""

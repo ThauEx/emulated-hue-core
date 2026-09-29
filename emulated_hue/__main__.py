@@ -1,6 +1,7 @@
 """Emulated Hue quick start."""
 import argparse
 import asyncio
+import json
 import logging
 import os
 import traceback
@@ -9,6 +10,7 @@ from aiorun import run
 from hass_client.exceptions import CannotConnect
 
 from emulated_hue import HueEmulator, const
+from emulated_hue.controllers.config import DirectPathConfig
 
 IS_SUPERVISOR = os.path.isfile("/data/options.json") and os.environ.get("HASSIO_TOKEN")
 
@@ -91,6 +93,27 @@ if __name__ == "__main__":
         help="Default ESPHome native API password for the direct entertainment path",
         default=os.getenv("ESPHOME_PASSWORD", ""),
     )
+    parser.add_argument(
+        "--wiz-host",
+        type=str,
+        help="Default WiZ host for the direct entertainment path, used by "
+        "lights that don't set their own wiz_host",
+        default=os.getenv("WIZ_HOST", ""),
+    )
+    parser.add_argument(
+        "--wiz-port",
+        type=int,
+        help="Default WiZ UDP control port for the direct entertainment path",
+        default=os.getenv("WIZ_PORT", "38899"),
+    )
+    parser.add_argument(
+        "--lights-json",
+        type=str,
+        help="JSON list of per-light direct-path overrides from the add-on's "
+        "'lights' config list, each a {entity_id, type, host, port, "
+        "password, object_id} dict",
+        default=os.getenv("LIGHTS_JSON", "[]"),
+    )
 
     args = parser.parse_args()
     datapath = args.data
@@ -107,6 +130,19 @@ if __name__ == "__main__":
     # turn down logging for hass-client
     logging.getLogger("hass_client").setLevel(logging.INFO)
 
+    try:
+        light_overrides = json.loads(args.lights_json)
+    except json.JSONDecodeError:
+        logger.warning("Could not parse --lights-json, ignoring: %r", args.lights_json)
+        light_overrides = []
+
+    direct_path = DirectPathConfig(
+        esphome_host=args.esphome_host,
+        esphome_port=args.esphome_port,
+        esphome_password=args.esphome_password,
+        wiz_host=args.wiz_host,
+        wiz_port=args.wiz_port,
+    )
     hue = HueEmulator(
         datapath,
         url,
@@ -114,9 +150,8 @@ if __name__ == "__main__":
         args.http_port,
         args.https_port,
         use_default_ports,
-        args.esphome_host,
-        args.esphome_port,
-        args.esphome_password,
+        direct_path,
+        light_overrides,
     )
 
     def on_shutdown(loop):
