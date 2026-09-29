@@ -29,6 +29,8 @@ from aioesphomeapi import APIClient, APIConnectionError, ColorMode, LightInfo
 
 LOGGER = logging.getLogger(__name__)
 
+DEFAULT_PORT = 6053
+
 # One persistent connection per ESPHome host, reused across all entertainment
 # frames for as long as the stream is active. Keyed by host so the same
 # device is never dialed twice even if it appears under multiple light ids.
@@ -187,7 +189,7 @@ async def _async_get_ready_client(
 async def async_send_light_state(
     *,
     host: str,
-    port: int,
+    port: int = DEFAULT_PORT,
     credential: str,
     object_id: str | None = None,
     power: bool = True,

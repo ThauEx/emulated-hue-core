@@ -4,7 +4,6 @@ import datetime
 import hashlib
 import logging
 import os
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -31,23 +30,6 @@ DEFINITIONS_FILE = os.path.join(
 )
 
 
-@dataclass
-class DirectPathConfig:
-    """
-    Add-on-wide defaults for the direct ESPHome/WiZ entertainment paths.
-
-    Bundled into one object (rather than five separate constructor
-    arguments) purely to stay under our ruff max-args limit - these values
-    are only ever passed straight through from CLI args to Config.
-    """
-
-    esphome_host: str = ""
-    esphome_port: int = 6053
-    esphome_password: str = ""
-    wiz_host: str = ""
-    wiz_port: int = 38899
-
-
 class Config:
     """Hold configuration variables for the emulated hue bridge."""
 
@@ -58,31 +40,10 @@ class Config:
         http_port: int,
         https_port: int,
         use_default_ports: bool,
-        direct_path: DirectPathConfig | None = None,
     ):
         """Initialize the instance."""
         self.ctl = ctl
         self.data_path = data_path
-        # Default ESPHome/WiZ direct-path targets, used by lights that don't
-        # set their own esphome_host/wiz_host in their light config. A
-        # light-level host always takes precedence over these.
-        direct_path = direct_path or DirectPathConfig()
-        self.esphome_host = direct_path.esphome_host
-        self.esphome_port = direct_path.esphome_port
-        self.esphome_password = direct_path.esphome_password
-        self.wiz_host = direct_path.wiz_host
-        self.wiz_port = direct_path.wiz_port
-        LOGGER.info(
-            "ESPHome direct-path default: host=%s port=%s password_set=%s",
-            self.esphome_host or "(none)",
-            self.esphome_port,
-            bool(self.esphome_password),
-        )
-        LOGGER.info(
-            "WiZ direct-path default: host=%s port=%s",
-            self.wiz_host or "(none)",
-            self.wiz_port,
-        )
         if not os.path.isdir(data_path):
             os.mkdir(data_path)
         self._config = load_json(self.get_path(CONFIG_FILE))

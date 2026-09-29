@@ -8,7 +8,8 @@ Control all lights connected to your Home Assistant box with HUE compatible apps
 
 Fork of the original [hass-emulated-hue/core](https://github.com/hass-emulated-hue/core) (inactive since July 2023), created to fix a real Ambilight+Hue color-accuracy/latency problem: the upstream project only ever talks to lights through Home Assistant's normal service-call pipeline, adding overhead and relying on HA's generic (non-gamut-corrected) color conversion. On top of a batch of real upstream bugs found and fixed along the way (see git history), this fork adds:
 
-- **A direct ESPHome native-API path** (`emulated_hue/controllers/esphome_direct.py`): for lights that set `esphome_host` (either per-light in `emulated_hue.json`, or as an add-on-wide default in the add-on's Configuration tab), commands go straight to the ESPHome device over the same native API Home Assistant itself uses - skipping HA's service-call pipeline entirely, with our own gamut-correct color conversion instead of HA's generic one. Works for both the classic per-light API (`PUT /api/.../lights/{id}/state`) and Hue Entertainment streaming, and auto-detects the device's actual supported color modes (so it works whether the ESPHome light is a plain RGB/CT platform or a combined-channel one like the built-in `rgbww`). Supports both legacy plaintext API passwords and ESPHome 2026.1.0+'s Noise PSK encryption, auto-detected.
+- **Direct native-control paths for ESPHome and WiZ lights** (`emulated_hue/controllers/esphome_direct.py`, `wiz_direct.py`): for a light configured with a direct-path target (see "Direct-path light configuration" below), commands go straight to the device - over ESPHome's native API, or WiZ's UDP control protocol - skipping HA's service-call pipeline entirely, with our own gamut-correct color conversion instead of HA's generic one. Works for both the classic per-light API (`PUT /api/.../lights/{id}/state`) and Hue Entertainment streaming. The ESPHome path auto-detects the device's actual supported color modes (so it works whether the light is a plain RGB/CT platform or a combined-channel one like the built-in `rgbww`) and supports both legacy plaintext API passwords and ESPHome 2026.1.0+'s Noise PSK encryption, auto-detected. The WiZ path sends fire-and-forget (no waiting for the device's ack), since Entertainment streams frames faster than a WiFi UDP round-trip.
+- **An ingress web UI** (`emulated_hue/ingress.py`) for assigning each light's direct-path target and triggering pairing mode - see "Direct-path light configuration" below.
 - **A CLIP v2 API** (`emulated_hue/apiv2.py`, `/clip/v2/resource/...`): modern Hue clients (including current-generation Ambilight+Hue TV firmware) set up real Entertainment (DTLS/UDP) streaming through CLIP v2's `entertainment_configuration` resource rather than the legacy v1 group mechanism, which this bridge didn't implement at all before. It's a thin routing/JSON-shape layer over the *same* v1 storage and Entertainment engine - no parallel data model. Scoped to what Entertainment needs (`bridge`, `device`, `light`, `entertainment`, `entertainment_configuration`); deliberately doesn't implement the `/eventstream/clip/v2` SSE endpoint (confirmed unnecessary for Entertainment specifically) or non-Entertainment v2 resources (rooms/zones/scenes/etc).
 
 None of this requires re-pairing or changes your existing v1 setup - both APIs run side by side.
@@ -19,7 +20,7 @@ None of this requires re-pairing or changes your existing v1 setup - both APIs r
 - Allow you to create your own HUE groups and scenes.
 - Secured connection and authentication flow (unlike default emulated hue component in hass).
 - Fully emulates a "V2" HUE bridge, including the CLIP v2 API for Entertainment.
-- Loosely coupled with HomeAssistant over low-latency websockets (or, for ESPHome lights with `esphome_host` set, direct to the device).
+- Loosely coupled with HomeAssistant over low-latency websockets (or, for lights with a direct-path target configured, straight to the device).
 - Experimental support for HUE Entertainment (see below).
 
 ## Use cases
@@ -33,16 +34,18 @@ None of this requires re-pairing or changes your existing v1 setup - both APIs r
 - Install the "Emulated HUE (Direct ESPHome)" addon from the addon-store
 - Start the newly installed addon and it will work instantly
 
-## Direct ESPHome path configuration
+## Direct-path light configuration
 
-Set in the add-on's Configuration tab (applies to any light without its own `esphome_host`, i.e. the common single-ESPHome-light case):
-- `esphome_host`: IP/hostname of the ESPHome device.
-- `esphome_port`: native API port, defaults to 6053.
-- `esphome_password`: the device's native API credential - either a legacy plaintext password, or (ESPHome 2026.1.0+) the base64 `api: encryption: key:` Noise PSK. Auto-detected, no need to specify which.
+Once the add-on is running, open its panel from the Home Assistant sidebar (enable "Show in sidebar" on the add-on's Info page if it's not there yet) - it lists every light the bridge already knows about. For each one you can pick:
+- **None** - plain Home Assistant control (the default).
+- **ESPHome** - host/IP, port (defaults to 6053), optional object ID (only needed if the device exposes more than one light entity), and its native-API credential (a legacy plaintext password, or ESPHome 2026.1.0+'s base64 `api: encryption: key:` Noise PSK - auto-detected, no need to specify which).
+- **WiZ** - host/IP and port (defaults to 38899).
 
-For more than one ESPHome light, stop the add-on, edit `emulated_hue.json` in `/config/hass-emulated-hue/`, and add `esphome_host`/`esphome_port`/`esphome_password`/`esphome_object_id`/`esphome_gamut` to the relevant light's entry under `"lights"` - a light's own value always overrides the add-on-wide default.
+Changes take effect immediately, no add-on restart needed. Pairing mode can also be triggered from the same panel instead of the Home Assistant notification.
 
-Once started, it will be available as a HUE bridge on your network.
+A light only shows up once the bridge has seen it at least once (e.g. after a Hue client has asked for the light list, or you've toggled it through Home Assistant) - if a light you expect is missing, give it a moment and reload the panel.
+
+Once started, the bridge will be available as a HUE bridge on your network.
 
 ## How to connect to the virtual bridge ?
 - From your app/device (for example the official HUE app) search for HUE bridges.
@@ -59,7 +62,7 @@ The [Hue Entertainment API](https://developers.meethue.com/develop/hue-entertain
 
 We've created a (highly experimental!) python implementation of this streaming protocol that actually works pretty well altough not as good as it's original. While packets are indeed live streamed (at a rate between 25-50 messages per second) to our virtual bridge, we unpack them and convert them to commands the light implementations can understand at a more sane rate level (throttling). We choose some settings which result in a nice effect with not too much delay without completely overloading a platform. This means that the Entertainment mode will work with **any light** connected to Home Assistant. Cool! 
 
-**This fork adds the CLIP v2 `entertainment_configuration` API** alongside the legacy v1 mechanism above, since modern Hue clients (including current-generation Ambilight+Hue TV firmware) may only attempt Entertainment setup through v2 - see "About this fork". And for ESPHome lights specifically, the direct ESPHome path means those "commands the light implementations can understand" skip Home Assistant entirely.
+**This fork adds the CLIP v2 `entertainment_configuration` API** alongside the legacy v1 mechanism above, since modern Hue clients (including current-generation Ambilight+Hue TV firmware) may only attempt Entertainment setup through v2 - see "About this fork". And for lights with a direct-path target configured (ESPHome or WiZ), those "commands the light implementations can understand" skip Home Assistant entirely.
 
 The next step we have in mind is, if you own official HUE lights connected to ZHA, to forward the special Entertainment packets into the Zigbee mesh, resulting in the real streaming experience (realtime effects with no delay). 
 
@@ -89,7 +92,7 @@ You can also delete a light in the HUE app. That will also mark the light as dis
 
 Entertainment mode is heavy. It will send multiple commands per second to each light. If you hardware can't cope up with this we have an advanced little setting hidden in the above mentioned emulated_hue.json config file called "entertainment_throttle". Set a value (in milliseconds) to throttle requests to this light. A good value to start with is 500. Remember to stop the addon before you start editing this file.
 
-For ESPHome lights using the direct path (see "About this fork"), this only halves the problem: sending commands now skips Home Assistant entirely, so the *outgoing* overhead is gone. But ESPHome always broadcasts a light's state to every connected native-API client, including Home Assistant's own normal connection to that device - so HA's event bus/recorder/history still see the same volume of state-change updates as before, regardless of who actually issued the command. `entertainment_throttle` still helps with that side of it.
+For lights using a direct path (see "About this fork"), this only halves the problem: sending commands now skips Home Assistant entirely, so the *outgoing* overhead is gone. But an ESPHome device always broadcasts its state to every connected native-API client, including Home Assistant's own normal connection to that device - so HA's event bus/recorder/history still see the same volume of state-change updates as before, regardless of who actually issued the command. `entertainment_throttle` still helps with that side of it. (WiZ's protocol has no such broadcast, so this doesn't apply to WiZ lights.)
 
 
 

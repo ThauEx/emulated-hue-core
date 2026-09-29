@@ -2,7 +2,7 @@
 import asyncio
 
 from . import esphome_direct, scheduler, wiz_direct
-from .config import Config, DirectPathConfig
+from .config import Config
 from .homeassistant import HomeAssistantController
 from .models import Controller
 from .scheduler import add_scheduler, remove_scheduler  # noqa
@@ -15,7 +15,6 @@ async def async_start(
     http_port,
     https_port,
     use_default_ports,
-    direct_path: DirectPathConfig | None = None,
 ) -> Controller:
     """Initialize all controllers."""
     ctl = Controller()
@@ -28,7 +27,6 @@ async def async_start(
         http_port,
         https_port,
         use_default_ports,
-        direct_path,
     )
     await ctl.controller_hass.connect()
     return ctl

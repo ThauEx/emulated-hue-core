@@ -9,7 +9,6 @@ from aiorun import run
 from hass_client.exceptions import CannotConnect
 
 from emulated_hue import HueEmulator, const
-from emulated_hue.controllers.config import DirectPathConfig
 
 IS_SUPERVISOR = os.path.isfile("/data/options.json") and os.environ.get("HASSIO_TOKEN")
 
@@ -73,38 +72,6 @@ if __name__ == "__main__":
         help=f"Always use HTTP port {const.HUE_HTTP_PORT} and HTTPS port {const.HUE_HTTPS_PORT} for discovery "
         f"regardless of actual exposed ports. Useful with reverse proxy.",
     )
-    parser.add_argument(
-        "--esphome-host",
-        type=str,
-        help="Default ESPHome host for the direct entertainment path, used by "
-        "lights that don't set their own esphome_host",
-        default=os.getenv("ESPHOME_HOST", ""),
-    )
-    parser.add_argument(
-        "--esphome-port",
-        type=int,
-        help="Default ESPHome native API port for the direct entertainment path",
-        default=os.getenv("ESPHOME_PORT", "6053"),
-    )
-    parser.add_argument(
-        "--esphome-password",
-        type=str,
-        help="Default ESPHome native API password for the direct entertainment path",
-        default=os.getenv("ESPHOME_PASSWORD", ""),
-    )
-    parser.add_argument(
-        "--wiz-host",
-        type=str,
-        help="Default WiZ host for the direct entertainment path, used by "
-        "lights that don't set their own wiz_host",
-        default=os.getenv("WIZ_HOST", ""),
-    )
-    parser.add_argument(
-        "--wiz-port",
-        type=int,
-        help="Default WiZ UDP control port for the direct entertainment path",
-        default=os.getenv("WIZ_PORT", "38899"),
-    )
     args = parser.parse_args()
     datapath = args.data
     url = args.url
@@ -120,13 +87,6 @@ if __name__ == "__main__":
     # turn down logging for hass-client
     logging.getLogger("hass_client").setLevel(logging.INFO)
 
-    direct_path = DirectPathConfig(
-        esphome_host=args.esphome_host,
-        esphome_port=args.esphome_port,
-        esphome_password=args.esphome_password,
-        wiz_host=args.wiz_host,
-        wiz_port=args.wiz_port,
-    )
     hue = HueEmulator(
         datapath,
         url,
@@ -134,7 +94,6 @@ if __name__ == "__main__":
         args.http_port,
         args.https_port,
         use_default_ports,
-        direct_path,
     )
 
     def on_shutdown(loop):

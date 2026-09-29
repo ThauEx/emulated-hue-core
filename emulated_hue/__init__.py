@@ -2,7 +2,6 @@
 import logging
 
 from . import controllers
-from .controllers.config import DirectPathConfig
 from .discovery import async_setup_discovery
 from .web import HueWeb
 
@@ -20,7 +19,6 @@ class HueEmulator:
         http_port: int,
         https_port: int,
         use_default_ports: bool,
-        direct_path: DirectPathConfig | None = None,
     ) -> None:
         """Create an instance of HueEmulator."""
         self.ctl: controllers.Controller | None = None
@@ -29,7 +27,6 @@ class HueEmulator:
             http_port,
             https_port,
             use_default_ports,
-            direct_path,
         )
         self._hass_url = hass_url
         self._hass_token = hass_token

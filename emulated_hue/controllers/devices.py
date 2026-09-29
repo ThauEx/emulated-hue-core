@@ -320,9 +320,8 @@ class OnOffDevice:
 
     async def _async_maybe_send_direct(self, control_state: EntityState) -> bool:
         """Try sending control_state directly to ESPHome or WiZ. Returns True if handled."""
-        config_instance = self.ctl.config_instance
-        esphome_host = self._config.get("esphome_host") or config_instance.esphome_host
-        wiz_host = self._config.get("wiz_host") or config_instance.wiz_host
+        esphome_host = self._config.get("esphome_host")
+        wiz_host = self._config.get("wiz_host")
         if not esphome_host and not wiz_host:
             return False
 
@@ -355,9 +354,8 @@ class OnOffDevice:
 
         if esphome_host and await esphome_direct.async_send_light_state(
             host=esphome_host,
-            port=self._config.get("esphome_port") or config_instance.esphome_port,
-            credential=self._config.get("esphome_password")
-            or config_instance.esphome_password,
+            port=self._config.get("esphome_port") or esphome_direct.DEFAULT_PORT,
+            credential=self._config.get("esphome_password", ""),
             object_id=self._config.get("esphome_object_id"),
             power=control_state.power_state,
             rgb=rgb,
@@ -368,7 +366,7 @@ class OnOffDevice:
 
         if wiz_host and await wiz_direct.async_send_light_state(
             host=wiz_host,
-            port=self._config.get("wiz_port") or config_instance.wiz_port,
+            port=self._config.get("wiz_port") or wiz_direct.DEFAULT_PORT,
             power=control_state.power_state,
             rgb=rgb,
             color_temperature=color_temp,

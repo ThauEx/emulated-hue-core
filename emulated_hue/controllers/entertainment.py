@@ -166,26 +166,24 @@ class EntertainmentAPI:
                 x, y, brightness, light_conf.get("esphome_gamut")
             )
 
-        # A light's own esphome_host/wiz_host always wins; otherwise fall back
-        # to the add-on-wide default (set via the add-on's Configuration
-        # tab), so a single-light setup needs no emulated_hue.json editing.
-        config_instance = self.ctl.config_instance
-        esphome_host = light_conf.get("esphome_host") or config_instance.esphome_host
+        # Set per-light via the ingress config panel (see ingress.py) -
+        # esphome_host/wiz_host being unset just means "use the normal
+        # Home Assistant path" for this light.
+        esphome_host = light_conf.get("esphome_host")
         if esphome_host and await esphome_direct.async_send_light_state(
             host=esphome_host,
-            port=light_conf.get("esphome_port") or config_instance.esphome_port,
-            credential=light_conf.get("esphome_password")
-            or config_instance.esphome_password,
+            port=light_conf.get("esphome_port") or esphome_direct.DEFAULT_PORT,
+            credential=light_conf.get("esphome_password", ""),
             object_id=light_conf.get("esphome_object_id"),
             rgb=rgb,
             brightness=brightness,
         ):
             return
 
-        wiz_host = light_conf.get("wiz_host") or config_instance.wiz_host
+        wiz_host = light_conf.get("wiz_host")
         if wiz_host and await wiz_direct.async_send_light_state(
             host=wiz_host,
-            port=light_conf.get("wiz_port") or config_instance.wiz_port,
+            port=light_conf.get("wiz_port") or wiz_direct.DEFAULT_PORT,
             rgb=rgb,
             brightness=brightness,
         ):
