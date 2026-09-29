@@ -533,20 +533,12 @@ class HueApiV1Endpoints:
             or token != self.ctl.config_instance.link_mode_discovery_key
         ):
             return web.Response(body="Invalid token supplied!", status=302)
-        html_template = """
-            <html>
-                <body>
-                    <h2>Link mode is enabled for 5 minutes.</h2>
-                </body>
-                <script>
-                  setTimeout(function() {
-                      window.close()
-                  }, 2000);
-                </script>
-            </html>"""
         await self.ctl.config_instance.async_enable_link_mode()
         await self.ctl.config_instance.async_disable_link_mode_discovery()
-        return web.Response(text=html_template, content_type="text/html")
+        # Send the user straight to the ingress panel instead of a one-off
+        # confirmation page - it already polls pairing status on load, so
+        # the live countdown there doubles as the "pairing enabled" notice.
+        raise web.HTTPFound(location=const.HUE_INGRESS_PANEL_PATH)
 
     @routes.get("/api/{username}/capabilities")
     @check_request()

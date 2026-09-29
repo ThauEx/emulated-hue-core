@@ -87,6 +87,10 @@ HUE_HTTPS_PORT = 443
 # add-on's config.json, since Supervisor's ingress proxy needs to know it
 # ahead of time (it's not something we can pass in via options/env).
 HUE_INGRESS_PORT = 8880
+# Must match the "slug" in the add-on's config.json - Home Assistant's
+# frontend resolves this stable path to whatever the add-on's actual
+# (session-specific) ingress URL currently is.
+HUE_INGRESS_PANEL_PATH = "/hassio/ingress/emulated_hue_direct"
 
 # New const
 HASS_DOMAIN_HOMEASSISTANT = "homeassistant"
