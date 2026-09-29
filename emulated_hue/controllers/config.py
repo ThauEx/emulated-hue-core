@@ -1,5 +1,6 @@
 """Hold configuration variables for the emulated hue bridge."""
 import asyncio
+import copy
 import datetime
 import hashlib
 import logging
@@ -261,13 +262,21 @@ class Config:
     def get_storage_value(
         self, key: str, subkey: str = None, default: Any | None = None
     ) -> Any:
-        """Get a value from persistent storage."""
+        """
+        Get a value from persistent storage.
+
+        Always returns a deep copy, never a live reference into our storage
+        tree - a caller that fetches a dict, mutates it in place and passes
+        that same object straight back to async_set_storage_value would
+        otherwise make its change-detection compare the object to itself
+        (always equal), silently skipping the save.
+        """
         main_val = self._config.get(key, None)
         if main_val is None:
             return default
         if subkey:
-            return main_val.get(subkey, default)
-        return main_val
+            return copy.deepcopy(main_val.get(subkey, default))
+        return copy.deepcopy(main_val)
 
     async def async_set_storage_value(
         self, key: str, subkey: str, value: str | dict

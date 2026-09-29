@@ -826,8 +826,10 @@ class HueApiV1Endpoints:
         for group_id, group_conf in groups.items():
             # no area_id = not hass area
             if "area_id" not in group_conf:
+                # async_get_storage_value already hands back a deep copy, so
+                # mutating this display-only "active" flag can't leak into
+                # the actual stored config.
                 if "stream" in group_conf:
-                    group_conf = copy.deepcopy(group_conf)
                     if self.ctl.config_instance.entertainment_active:
                         group_conf["stream"]["active"] = True
                     else:
