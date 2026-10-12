@@ -21,15 +21,19 @@ the classic per-light path share them.
 Callers should treat a False return as "not available right now" and fall
 back to the existing Home Assistant path; nothing here raises.
 """
+import asyncio
 import base64
 import binascii
 import logging
+import time
 
 from aioesphomeapi import APIClient, APIConnectionError, ColorMode, LightInfo
 
 LOGGER = logging.getLogger(__name__)
 
 DEFAULT_PORT = 6053
+# How long to leave a device alone after a failed connect before dialing again.
+RECONNECT_BACKOFF_SECONDS = 5.0
 
 # One persistent connection per ESPHome host, reused across all entertainment
 # frames for as long as the stream is active. Keyed by host so the same
@@ -44,6 +48,10 @@ _light_caps: dict[str, tuple[frozenset, float, float]] = {}
 # Hosts we've already logged as inactive, so a still-unreachable device
 # doesn't spam a warning/info line on every single request.
 _logged_inactive: set[str] = set()
+# Per-host connect serialization, and the monotonic time before which we
+# won't retry a host whose last connect attempt failed.
+_connect_locks: dict[str, asyncio.Lock] = {}
+_retry_after: dict[str, float] = {}
 
 
 def _log_inactive(host: str) -> None:
@@ -131,17 +139,45 @@ def _pick_color_mode_and_extra(
     return None, {}
 
 
+def _ready(host: str) -> tuple[APIClient, int] | None:
+    client = _clients.get(host)
+    key = _light_keys.get(host)
+    if client is None or key is None:
+        return None
+    return client, key
+
+
 async def _async_get_ready_client(
     host: str, port: int, credential: str, object_id: str | None
 ) -> tuple[APIClient, int] | None:
-    """Return a connected client plus the resolved light entity key."""
-    client = _clients.get(host)
-    if client is None:
-        password, noise_psk = _split_credential(credential)
-        client = APIClient(host, port, password=password, noise_psk=noise_psk)
-        _clients[host] = client
+    """
+    Return a connected client plus the resolved light entity key.
 
-    if host not in _light_keys:
+    Connecting is serialized per host and rate-limited after a failure: with
+    Entertainment streaming at 25-50 frames/s, every frame would otherwise
+    start its own connect attempt against a device that's down or busy -
+    hammering a small ESP8266 (limited RAM, few connection slots, expensive
+    Noise handshake) hard enough to keep it, and Home Assistant's own
+    connection to it, from recovering.
+    """
+    if (ready := _ready(host)) is not None:
+        return ready
+    if time.monotonic() < _retry_after.get(host, 0.0):
+        return None
+
+    async with _connect_locks.setdefault(host, asyncio.Lock()):
+        # Another frame may have finished connecting while we waited.
+        if (ready := _ready(host)) is not None:
+            return ready
+        if time.monotonic() < _retry_after.get(host, 0.0):
+            return None
+
+        client = _clients.get(host)
+        if client is None:
+            password, noise_psk = _split_credential(credential)
+            client = APIClient(host, port, password=password, noise_psk=noise_psk)
+            _clients[host] = client
+
         try:
             if client.api_version is None:
                 await client.connect(login=True)
@@ -149,6 +185,7 @@ async def _async_get_ready_client(
         except APIConnectionError as err:
             LOGGER.warning("Could not connect to ESPHome device at %s: %s", host, err)
             _clients.pop(host, None)
+            _retry_after[host] = time.monotonic() + RECONNECT_BACKOFF_SECONDS
             _log_inactive(host)
             return None
 
@@ -168,6 +205,7 @@ async def _async_get_ready_client(
             light = lights[0]
         if light is None:
             LOGGER.warning("No light entity found on ESPHome device %s", host)
+            _retry_after[host] = time.monotonic() + RECONNECT_BACKOFF_SECONDS
             _log_inactive(host)
             return None
         _light_keys[host] = light.key
@@ -176,14 +214,14 @@ async def _async_get_ready_client(
             light.min_mireds,
             light.max_mireds,
         )
+        _retry_after.pop(host, None)
         _logged_inactive.discard(host)
         LOGGER.info(
             "Direct ESPHome path active for %s (light %s)",
             host,
             light.object_id,
         )
-
-    return client, _light_keys[host]
+        return client, light.key
 
 
 async def async_send_light_state(
@@ -254,3 +292,5 @@ async def async_close_all() -> None:
     _light_keys.clear()
     _light_caps.clear()
     _logged_inactive.clear()
+    _connect_locks.clear()
+    _retry_after.clear()

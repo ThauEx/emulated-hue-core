@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import os
+import time
 
 from emulated_hue.controllers import esphome_direct, wiz_direct
 from emulated_hue.controllers.color_utils import xy_brightness_to_rgb
@@ -170,15 +171,25 @@ class EntertainmentAPI:
         # esphome_host/wiz_host being unset just means "use the normal
         # Home Assistant path" for this light.
         esphome_host = light_conf.get("esphome_host")
-        if esphome_host and await esphome_direct.async_send_light_state(
-            host=esphome_host,
-            port=light_conf.get("esphome_port") or esphome_direct.DEFAULT_PORT,
-            credential=light_conf.get("esphome_password", ""),
-            object_id=light_conf.get("esphome_object_id"),
-            rgb=rgb,
-            brightness=brightness,
-        ):
-            return
+        if esphome_host:
+            # The HA path honors the light's `throttle` via the device layer,
+            # but this path bypasses that - without it a 25-50Hz stream hits
+            # a small ESP8266 with every frame (plus a state broadcast per
+            # frame to each connected API client).
+            now = time.monotonic()
+            throttle_s = (light_conf.get("throttle") or 0) / 1000
+            if now - self._timestamps.get(light_id, 0.0) < throttle_s:
+                return
+            self._timestamps[light_id] = now
+            if await esphome_direct.async_send_light_state(
+                host=esphome_host,
+                port=light_conf.get("esphome_port") or esphome_direct.DEFAULT_PORT,
+                credential=light_conf.get("esphome_password", ""),
+                object_id=light_conf.get("esphome_object_id"),
+                rgb=rgb,
+                brightness=brightness,
+            ):
+                return
 
         wiz_host = light_conf.get("wiz_host")
         if wiz_host and await wiz_direct.async_send_light_state(
