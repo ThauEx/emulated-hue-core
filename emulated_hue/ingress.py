@@ -87,6 +87,7 @@ class HueIngressEndpoints:
                     "port": conf.get("wiz_port") or conf.get("esphome_port", ""),
                     "object_id": conf.get("esphome_object_id", ""),
                     "esphome_password_set": bool(conf.get("esphome_password")),
+                    "max_transition_ms": conf.get("max_transition_ms", ""),
                 }
             )
         result.sort(key=lambda item: int(item["light_id"]))
@@ -116,10 +117,25 @@ class HueIngressEndpoints:
 
         host = (data.get("host") or "").strip()
         port = data.get("port") or None
+        max_transition = data.get("max_transition_ms")
+        try:
+            port = int(port) if port else None
+            max_transition = (
+                int(max_transition) if max_transition not in (None, "") else None
+            )
+        except (TypeError, ValueError):
+            return send_error_response(
+                request.path, "port/max_transition_ms must be numbers", 5
+            )
+        if max_transition is None:
+            light_conf.pop("max_transition_ms", None)
+        else:
+            light_conf["max_transition_ms"] = max(0, max_transition)
+
         if direct_type == "esphome":
             light_conf["esphome_host"] = host
             if port:
-                light_conf["esphome_port"] = int(port)
+                light_conf["esphome_port"] = port
             if data.get("password"):
                 # A blank password field means "keep the existing one" - we
                 # never send the real secret back to the browser to edit.
@@ -131,7 +147,7 @@ class HueIngressEndpoints:
             if direct_type == "wiz":
                 light_conf["wiz_host"] = host
                 if port:
-                    light_conf["wiz_port"] = int(port)
+                    light_conf["wiz_port"] = port
 
         await self.ctl.config_instance.async_set_storage_value(
             "lights", light_id, light_conf
@@ -314,6 +330,10 @@ function fieldsHtml(light) {
         <label>Port</label>
         <input data-field="port" value="${light.port || ''}" placeholder="(default)">
       </div>
+      <div>
+        <label>Max. transition (ms)</label>
+        <input data-field="max_transition_ms" inputmode="numeric" value="${light.max_transition_ms === '' ? '' : light.max_transition_ms}" placeholder="no limit">
+      </div>
       <div class="esphome-only" style="${showEsphome ? '' : 'display:none'}">
         <label>Object ID</label>
         <input data-field="object_id" value="${light.object_id || ''}" placeholder="optional">
@@ -371,6 +391,7 @@ async function saveLight(card) {
     port: get('port'),
     object_id: get('object_id'),
     password: get('password'),
+    max_transition_ms: get('max_transition_ms'),
   };
   await api(`api/lights/${lightId}`, {
     method: 'POST',

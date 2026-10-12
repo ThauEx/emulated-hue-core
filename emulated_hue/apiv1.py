@@ -595,9 +595,10 @@ class HueApiV1Endpoints:
         device = await async_get_device(self.ctl, entity_id)
 
         call = device.new_control_state()
-        if transition := request_data.get(const.HUE_ATTR_TRANSITION):
+        if (transition := request_data.get(const.HUE_ATTR_TRANSITION)) is not None:
             # Duration of the transition from the light to the new state
-            # is given as a multiple of 100ms and defaults to 4 (400ms).
+            # is given as a multiple of 100ms and defaults to 4 (400ms); an
+            # explicit 0 means "no fade", not "not given".
             call.set_transition_ms(transition * 100)
         else:
             call.set_transition_ms(400)

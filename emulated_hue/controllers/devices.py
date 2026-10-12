@@ -143,6 +143,12 @@ class OnOffDevice:
             """Set transition in milliseconds."""
             if respect_throttle and transition_ms < self._throttle_ms:
                 transition_ms = self._throttle_ms
+            # A per-light cap wins over whatever the client asked for: Ambilight
+            # sends a fresh frame every few hundred ms with a 300-500ms fade, so
+            # a lamp that honors it never finishes fading and trails the picture.
+            max_ms = self._device.max_transition_ms
+            if max_ms is not None and transition_ms > max_ms:
+                transition_ms = max_ms
             self._control_state.transition_seconds = transition_ms / 1000
 
         def set_transition_seconds(
@@ -224,6 +230,11 @@ class OnOffDevice:
     def throttle_ms(self) -> int:
         """Return throttle_ms."""
         return self._throttle_ms
+
+    @property
+    def max_transition_ms(self) -> int | None:
+        """Return the per-light cap on transition time, None if unset."""
+        return self._config.get("max_transition_ms")
 
     @property
     def enabled(self) -> bool:
