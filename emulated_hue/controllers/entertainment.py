@@ -187,7 +187,9 @@ class EntertainmentAPI:
                 credential=light_conf.get("esphome_password", ""),
                 object_id=light_conf.get("esphome_object_id"),
                 rgb=rgb,
-                brightness=brightness,
+                # Stream frames carry absolute levels (brightness already in
+                # rgb); ESPHome must not scale them a second time.
+                brightness=1.0,
             ):
                 return
 

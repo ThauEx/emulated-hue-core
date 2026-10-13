@@ -337,6 +337,7 @@ class OnOffDevice:
             return False
 
         rgb = color_temp = None
+        xy_brightness = None
         if control_state.power_state:
             if control_state.color_mode == const.HASS_COLOR_MODE_RGB and (
                 control_state.rgb_color
@@ -345,9 +346,15 @@ class OnOffDevice:
             elif control_state.color_mode == const.HASS_COLOR_MODE_XY and (
                 control_state.xy_color
             ):
+                # A Hue request without "bri" means "keep the current level",
+                # and bri 0 (kept as 1 by set_brightness) is the dimmest level -
+                # so bake in the brightness the light actually has.
+                xy_brightness = (
+                    control_state.brightness or getattr(self, "brightness", 0) or 255
+                ) / 255
                 rgb = xy_brightness_to_rgb(
                     *control_state.xy_color,
-                    (control_state.brightness or 255) / 255,
+                    xy_brightness,
                     self._config.get("esphome_gamut"),
                 )
             elif control_state.color_mode == const.HASS_COLOR_MODE_HS and (
@@ -362,6 +369,14 @@ class OnOffDevice:
         brightness = (
             (control_state.brightness / 255) if control_state.brightness else None
         )
+        if xy_brightness is not None:
+            brightness = xy_brightness
+
+        # xy_brightness_to_rgb already includes the brightness in rgb. ESPHome
+        # would multiply its own brightness on top, so send 1.0 - otherwise
+        # bri 96 (38%) lands at roughly 2% light after ESPHome's gamma, and
+        # a lamp dimmed earlier keeps that dimmed level.
+        esphome_brightness = 1.0 if xy_brightness is not None else brightness
 
         if esphome_host and await esphome_direct.async_send_light_state(
             host=esphome_host,
@@ -371,7 +386,7 @@ class OnOffDevice:
             power=control_state.power_state,
             rgb=rgb,
             color_temperature=color_temp,
-            brightness=brightness,
+            brightness=esphome_brightness,
         ):
             return True
 

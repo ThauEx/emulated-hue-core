@@ -609,7 +609,9 @@ class HueApiV1Endpoints:
             call.set_power_state(True)
 
             # Don't error if we attempt to set an attribute that doesn't exist
-            if bri := request_data.get(const.HUE_ATTR_BRI):
+            # bri 0 is a valid "dimmest" request (Ambilight sends it for dark
+            # scenes); set_brightness clamps it to the minimum of 1.
+            if (bri := request_data.get(const.HUE_ATTR_BRI)) is not None:
                 with contextlib.suppress(AttributeError):
                     call.set_brightness(bri)
 
