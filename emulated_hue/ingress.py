@@ -58,6 +58,11 @@ class HueIngressEndpoints:
     async def async_stop(self):
         """Stop the ingress endpoints (nothing to clean up)."""
 
+    def _friendly_name(self, entity_id: str) -> str | None:
+        """Return the Home Assistant friendly name of an entity, if it has one."""
+        state = self.ctl.controller_hass.get_entity_state(entity_id) or {}
+        return state.get("attributes", {}).get("friendly_name")
+
     async def async_index(self, request: web.Request) -> web.Response:
         """Serve the ingress single-page UI."""
         return web.Response(text=INDEX_HTML, content_type="text/html")
@@ -65,6 +70,12 @@ class HueIngressEndpoints:
     @routes.get("/api/lights")
     async def async_get_lights(self, request: web.Request) -> web.Response:
         """Return every configured light with its current direct-path settings."""
+        # A light only gets a storage entry once something asks for it, which
+        # normally is a Hue client listing the lights - so a lamp that was just
+        # added to Home Assistant would be missing here. Create the entries up
+        # front, exactly as that client listing would.
+        for entity_id in self.ctl.controller_hass.get_entities():
+            await self.ctl.config_instance.async_entity_id_to_light_id(entity_id)
         lights = await self.ctl.config_instance.async_get_storage_value(
             "lights", default={}
         )
@@ -81,7 +92,9 @@ class HueIngressEndpoints:
                 {
                     "light_id": light_id,
                     "entity_id": conf.get("entity_id", ""),
-                    "name": conf.get("name") or conf.get("entity_id", ""),
+                    "name": conf.get("name")
+                    or self._friendly_name(conf.get("entity_id", ""))
+                    or conf.get("entity_id", ""),
                     "type": direct_type,
                     "host": conf.get("wiz_host") or conf.get("esphome_host", ""),
                     "port": conf.get("wiz_port") or conf.get("esphome_port", ""),
