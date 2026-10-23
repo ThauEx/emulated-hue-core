@@ -41,6 +41,8 @@ Once the add-on is running, open its panel from the Home Assistant sidebar (enab
 - **ESPHome** - host/IP, port (defaults to 6053), optional object ID (only needed if the device exposes more than one light entity), and its native-API credential (a legacy plaintext password, or ESPHome 2026.1.0+'s base64 `api: encryption: key:` Noise PSK - auto-detected, no need to specify which).
 - **WiZ** - host/IP and port (defaults to 38899).
 
+Every light also has two tuning fields: **Throttle (ms)** (minimum gap between updates sent to the light, default 150 - lower it for a capable lamp such as an ESP32 for smoother Ambilight; for ESPHome lights the lamp also fades across that gap) and **Max. transition (ms)** (caps the fade time the TV asks for, useful for lamps that otherwise trail the picture; leave empty for no limit).
+
 Changes take effect immediately, no add-on restart needed. Pairing mode can also be triggered from the same panel instead of the Home Assistant notification.
 
 A light only shows up once the bridge has seen it at least once (e.g. after a Hue client has asked for the light list, or you've toggled it through Home Assistant) - if a light you expect is missing, give it a moment and reload the panel.

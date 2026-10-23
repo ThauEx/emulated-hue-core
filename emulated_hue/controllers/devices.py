@@ -165,10 +165,27 @@ class OnOffDevice:
             """Execute control state."""
             await self._device.async_execute(self.control_state)
 
+    def _light_conf(self) -> dict:
+        """
+        Return the light's current stored config.
+
+        self._config is only a snapshot from when this device object was
+        created. Settings changed since (e.g. in the ingress panel) live in
+        storage, so anything that must reflect them reads from here.
+        """
+        return self.ctl.config_instance.get_storage_value("lights", self._light_id, {})
+
     async def _async_save_config(self) -> None:
-        """Save config to file."""
+        """
+        Save this device's own part of the light config (its state).
+
+        Writing the whole stale snapshot back would silently wipe settings
+        changed elsewhere since the snapshot was taken.
+        """
+        conf = self._light_conf() or dict(self._config)
+        conf["state"] = self._config.get("state", conf.get("state"))
         await self.ctl.config_instance.async_set_storage_value(
-            "lights", self._light_id, self._config
+            "lights", self._light_id, conf
         )
 
     def _save_config(self) -> None:
@@ -215,12 +232,13 @@ class OnOffDevice:
         if self._config_state == control_state:
             return False
 
-        if self._throttle_ms is None or self._throttle_ms == 0:
+        throttle_ms = self.throttle_ms
+        if throttle_ms is None or throttle_ms == 0:
             return True
 
         # if the last update was less than the throttle time ago, dont change
         now_timestamp = datetime.now().timestamp()
-        if now_timestamp - self._last_update < self._throttle_ms / 1000:
+        if now_timestamp - self._last_update < throttle_ms / 1000:
             return False
 
         self._last_update = now_timestamp
@@ -228,13 +246,13 @@ class OnOffDevice:
 
     @property
     def throttle_ms(self) -> int:
-        """Return throttle_ms."""
-        return self._throttle_ms
+        """Return throttle_ms (live from storage, so panel changes apply at once)."""
+        return self._light_conf().get("throttle", self._throttle_ms)
 
     @property
     def max_transition_ms(self) -> int | None:
         """Return the per-light cap on transition time, None if unset."""
-        return self._config.get("max_transition_ms")
+        return self._light_conf().get("max_transition_ms")
 
     @property
     def enabled(self) -> bool:
@@ -331,8 +349,9 @@ class OnOffDevice:
 
     async def _async_maybe_send_direct(self, control_state: EntityState) -> bool:
         """Try sending control_state directly to ESPHome or WiZ. Returns True if handled."""
-        esphome_host = self._config.get("esphome_host")
-        wiz_host = self._config.get("wiz_host")
+        conf = self._light_conf()
+        esphome_host = conf.get("esphome_host")
+        wiz_host = conf.get("wiz_host")
         if not esphome_host and not wiz_host:
             return False
 
@@ -355,7 +374,7 @@ class OnOffDevice:
                 rgb = xy_brightness_to_rgb(
                     *control_state.xy_color,
                     xy_brightness,
-                    self._config.get("esphome_gamut"),
+                    conf.get("esphome_gamut"),
                 )
             elif control_state.color_mode == const.HASS_COLOR_MODE_HS and (
                 control_state.hue_saturation
@@ -380,9 +399,9 @@ class OnOffDevice:
 
         if esphome_host and await esphome_direct.async_send_light_state(
             host=esphome_host,
-            port=self._config.get("esphome_port") or esphome_direct.DEFAULT_PORT,
-            credential=self._config.get("esphome_password", ""),
-            object_id=self._config.get("esphome_object_id"),
+            port=conf.get("esphome_port") or esphome_direct.DEFAULT_PORT,
+            credential=conf.get("esphome_password", ""),
+            object_id=conf.get("esphome_object_id"),
             power=control_state.power_state,
             rgb=rgb,
             color_temperature=color_temp,
@@ -392,7 +411,7 @@ class OnOffDevice:
 
         if wiz_host and await wiz_direct.async_send_light_state(
             host=wiz_host,
-            port=self._config.get("wiz_port") or wiz_direct.DEFAULT_PORT,
+            port=conf.get("wiz_port") or wiz_direct.DEFAULT_PORT,
             power=control_state.power_state,
             rgb=rgb,
             color_temperature=color_temp,

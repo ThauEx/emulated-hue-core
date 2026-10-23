@@ -177,8 +177,8 @@ class EntertainmentAPI:
             # a small ESP8266 with every frame (plus a state broadcast per
             # frame to each connected API client).
             now = time.monotonic()
-            throttle_s = (light_conf.get("throttle") or 0) / 1000
-            if now - self._timestamps.get(light_id, 0.0) < throttle_s:
+            throttle_ms = light_conf.get("throttle") or 0
+            if now - self._timestamps.get(light_id, 0.0) < throttle_ms / 1000:
                 return
             self._timestamps[light_id] = now
             if await esphome_direct.async_send_light_state(
@@ -190,6 +190,9 @@ class EntertainmentAPI:
                 # Stream frames carry absolute levels (brightness already in
                 # rgb); ESPHome must not scale them a second time.
                 brightness=1.0,
+                # Let the lamp fade across the gap between accepted frames
+                # instead of stepping from colour to colour.
+                transition_ms=throttle_ms,
             ):
                 return
 

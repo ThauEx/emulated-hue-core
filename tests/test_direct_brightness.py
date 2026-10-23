@@ -5,10 +5,17 @@ xy_brightness_to_rgb() already bakes the brightness into rgb, and ESPHome
 multiplies its own brightness on top (before gamma). Sending both made a
 Hue bri of 96 land at roughly 2% light instead of ~30%.
 """
+from types import SimpleNamespace
+
 from emulated_hue import const
 from emulated_hue.controllers import esphome_direct
 from emulated_hue.controllers.devices import RGBDevice
 from emulated_hue.controllers.models import EntityState
+
+
+class _FakeConfig:
+    def get_storage_value(self, key, subkey=None, default=None):
+        return {"esphome_host": "lamp.local"}
 
 
 def _device(monkeypatch, known_brightness=100):
@@ -20,7 +27,8 @@ def _device(monkeypatch, known_brightness=100):
 
     monkeypatch.setattr(esphome_direct, "async_send_light_state", fake_send)
     device = object.__new__(RGBDevice)
-    device._config = {"esphome_host": "lamp.local"}
+    device._light_id = "1"
+    device.ctl = SimpleNamespace(config_instance=_FakeConfig())
     device._config_state = EntityState(brightness=known_brightness)
     return device, sent
 

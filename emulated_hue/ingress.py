@@ -12,6 +12,7 @@ import logging
 
 from aiohttp import web
 
+from emulated_hue.const import DEFAULT_THROTTLE_MS
 from emulated_hue.controllers import Controller
 from emulated_hue.utils import (
     ClassRouteTableDef,
@@ -101,6 +102,7 @@ class HueIngressEndpoints:
                     "object_id": conf.get("esphome_object_id", ""),
                     "esphome_password_set": bool(conf.get("esphome_password")),
                     "max_transition_ms": conf.get("max_transition_ms", ""),
+                    "throttle": conf.get("throttle", DEFAULT_THROTTLE_MS),
                 }
             )
         result.sort(key=lambda item: int(item["light_id"]))
@@ -131,19 +133,24 @@ class HueIngressEndpoints:
         host = (data.get("host") or "").strip()
         port = data.get("port") or None
         max_transition = data.get("max_transition_ms")
+        throttle = data.get("throttle")
         try:
             port = int(port) if port else None
             max_transition = (
                 int(max_transition) if max_transition not in (None, "") else None
             )
+            throttle = (
+                int(throttle) if throttle not in (None, "") else DEFAULT_THROTTLE_MS
+            )
         except (TypeError, ValueError):
             return send_error_response(
-                request.path, "port/max_transition_ms must be numbers", 5
+                request.path, "port/throttle/max_transition_ms must be numbers", 5
             )
         if max_transition is None:
             light_conf.pop("max_transition_ms", None)
         else:
             light_conf["max_transition_ms"] = max(0, max_transition)
+        light_conf["throttle"] = max(0, throttle)
 
         if direct_type == "esphome":
             light_conf["esphome_host"] = host
@@ -344,6 +351,10 @@ function fieldsHtml(light) {
         <input data-field="port" value="${light.port || ''}" placeholder="(default)">
       </div>
       <div>
+        <label>Throttle (ms)</label>
+        <input data-field="throttle" inputmode="numeric" value="${light.throttle}" placeholder="150">
+      </div>
+      <div>
         <label>Max. transition (ms)</label>
         <input data-field="max_transition_ms" inputmode="numeric" value="${light.max_transition_ms === '' ? '' : light.max_transition_ms}" placeholder="no limit">
       </div>
@@ -405,6 +416,7 @@ async function saveLight(card) {
     object_id: get('object_id'),
     password: get('password'),
     max_transition_ms: get('max_transition_ms'),
+    throttle: get('throttle'),
   };
   await api(`api/lights/${lightId}`, {
     method: 'POST',

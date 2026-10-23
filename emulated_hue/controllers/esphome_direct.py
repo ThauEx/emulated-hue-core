@@ -234,6 +234,7 @@ async def async_send_light_state(
     rgb: tuple[float, float, float] | None = None,
     color_temperature: float | None = None,
     brightness: float | None = None,
+    transition_ms: float = 0,
 ) -> bool:
     """
     Send a light state directly to an ESPHome light.
@@ -264,7 +265,7 @@ async def async_send_light_state(
         "rgb": rgb,
         "color_temperature": color_temperature,
         "brightness": brightness,
-        "transition_length": 0,
+        "transition_length": transition_ms / 1000,
         **extra,
     }
     try:
