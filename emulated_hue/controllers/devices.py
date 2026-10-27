@@ -11,7 +11,7 @@ from emulated_hue.const import ENTERTAINMENT_UPDATE_STATE_UPDATE_RATE
 from emulated_hue.utils import clamp
 
 from . import esphome_direct, wiz_direct
-from .color_utils import gamut_for, hs_to_rgb, xy_brightness_to_rgb
+from .color_utils import apply_balance, gamut_for, hs_to_rgb, xy_brightness_to_rgb
 from .models import ALL_STATES, Controller, EntityState
 
 LOGGER = logging.getLogger(__name__)
@@ -384,6 +384,8 @@ class OnOffDevice:
                 control_state.color_temp
             ):
                 color_temp = control_state.color_temp
+
+        rgb = apply_balance(rgb, conf)
 
         brightness = (
             (control_state.brightness / 255) if control_state.brightness else None

@@ -6,7 +6,11 @@ import os
 import time
 
 from emulated_hue.controllers import esphome_direct, wiz_direct
-from emulated_hue.controllers.color_utils import gamut_for, xy_brightness_to_rgb
+from emulated_hue.controllers.color_utils import (
+    apply_balance,
+    gamut_for,
+    xy_brightness_to_rgb,
+)
 from emulated_hue.controllers.devices import async_get_device
 
 from .models import Controller
@@ -168,6 +172,7 @@ class EntertainmentAPI:
         # Set per-light via the ingress config panel (see ingress.py) -
         # esphome_host/wiz_host being unset just means "use the normal
         # Home Assistant path" for this light.
+        direct_rgb = apply_balance(rgb, light_conf)
         esphome_host = light_conf.get("esphome_host")
         if esphome_host:
             # The HA path honors the light's `throttle` via the device layer,
@@ -184,7 +189,7 @@ class EntertainmentAPI:
                 port=light_conf.get("esphome_port") or esphome_direct.DEFAULT_PORT,
                 credential=light_conf.get("esphome_password", ""),
                 object_id=light_conf.get("esphome_object_id"),
-                rgb=rgb,
+                rgb=direct_rgb,
                 # Stream frames carry absolute levels (brightness already in
                 # rgb); ESPHome must not scale them a second time.
                 brightness=1.0,
@@ -198,7 +203,7 @@ class EntertainmentAPI:
         if wiz_host and await wiz_direct.async_send_light_state(
             host=wiz_host,
             port=light_conf.get("wiz_port") or wiz_direct.DEFAULT_PORT,
-            rgb=rgb,
+            rgb=direct_rgb,
             brightness=brightness,
         ):
             return

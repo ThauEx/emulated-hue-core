@@ -45,6 +45,26 @@ def gamut_for(light_conf: dict) -> tuple | None:
     )
 
 
+def apply_balance(
+    rgb: tuple[float, float, float] | None, light_conf: dict
+) -> tuple[float, float, float] | None:
+    """
+    Scale a light's 0-1 RGB by its per-channel color_balance (percent).
+
+    For lamps whose LEDs aren't equally strong - e.g. a green channel that
+    overpowers the red one turns orange into lime. The gains act on the
+    gamma-encoded values, and the lamp's own gamma then amplifies them (90%
+    ends up around 75% of the light), so small steps are enough.
+    """
+    balance = light_conf.get("color_balance")
+    if rgb is None or not balance:
+        return rgb
+    return tuple(
+        min(1.0, max(0.0, c * balance.get(channel, 100) / 100))
+        for c, channel in zip(rgb, "rgb", strict=True)
+    )
+
+
 def _gamma_correct(component: float) -> float:
     """Apply sRGB gamma companding to a linear colour component."""
     if component <= 0.0031308:

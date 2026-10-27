@@ -81,3 +81,24 @@ async def test_unknown_color_profile_is_rejected(client):
         f"/api/lights/{light_id}", json={"type": "", "color_profile": "neon"}
     )
     assert "error" in (await response.text())
+
+
+async def test_color_balance_is_saved_and_defaults_are_dropped(client):
+    test_client, _ = client
+    lights = await (await test_client.get("/api/lights")).json()
+    light_id = lights[0]["light_id"]
+    assert lights[0]["color_balance"] == {"r": 100, "g": 100, "b": 100}
+
+    await test_client.post(
+        f"/api/lights/{light_id}",
+        json={"type": "", "color_balance": {"r": "100", "g": "80", "b": ""}},
+    )
+    lights = await (await test_client.get("/api/lights")).json()
+    assert lights[0]["color_balance"] == {"r": 100, "g": 80, "b": 100}
+
+    await test_client.post(
+        f"/api/lights/{light_id}",
+        json={"type": "", "color_balance": {"r": "100", "g": "100", "b": "100"}},
+    )
+    lights = await (await test_client.get("/api/lights")).json()
+    assert lights[0]["color_balance"] == {"r": 100, "g": 100, "b": 100}

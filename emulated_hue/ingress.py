@@ -37,6 +37,17 @@ DIRECT_PATH_FIELDS = (
 )
 
 
+def _store_color_balance(light_conf: dict, raw: dict | None) -> None:
+    """Save the per-channel balance, dropping it again when it is all 100%."""
+    balance = {channel: int((raw or {}).get(channel) or 100) for channel in "rgb"}
+    if all(value == 100 for value in balance.values()):
+        light_conf.pop("color_balance", None)
+    else:
+        light_conf["color_balance"] = {
+            channel: min(100, max(1, value)) for channel, value in balance.items()
+        }
+
+
 class HueIngressEndpoints:
     """Ingress panel endpoints."""
 
@@ -105,6 +116,10 @@ class HueIngressEndpoints:
                     "max_transition_ms": conf.get("max_transition_ms", ""),
                     "throttle": conf.get("throttle", DEFAULT_THROTTLE_MS),
                     "color_profile": conf.get("color_profile", ""),
+                    "color_balance": {
+                        channel: conf.get("color_balance", {}).get(channel, 100)
+                        for channel in "rgb"
+                    },
                 }
             )
         result.sort(key=lambda item: int(item["light_id"]))
@@ -134,6 +149,13 @@ class HueIngressEndpoints:
             light_conf["color_profile"] = color_profile
         else:
             light_conf.pop("color_profile", None)
+
+        try:
+            _store_color_balance(light_conf, data.get("color_balance"))
+        except (TypeError, ValueError):
+            return send_error_response(
+                request.path, "color_balance values must be numbers", 7
+            )
 
         for field in DIRECT_PATH_FIELDS:
             if field != "esphome_password":
@@ -301,6 +323,7 @@ INDEX_HTML = """<!doctype html>
   }
   .light-name { font-weight: 600; }
   .light-entity { color: var(--text-dim); font-size: 12px; }
+  .balance { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
   .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
   label { font-size: 11px; color: var(--text-dim); display: block; margin-bottom: 3px; }
   select, input {
@@ -365,6 +388,14 @@ function fieldsHtml(light) {
           <option value="" ${light.color_profile === '' ? 'selected' : ''}>Wide (Hue, default)</option>
           <option value="srgb" ${light.color_profile === 'srgb' ? 'selected' : ''}>sRGB</option>
         </select>
+      </div>
+      <div>
+        <label>Color balance R / G / B (%)</label>
+        <div class="balance">
+          <input data-field="balance_r" inputmode="numeric" value="${light.color_balance.r}" placeholder="100">
+          <input data-field="balance_g" inputmode="numeric" value="${light.color_balance.g}" placeholder="100">
+          <input data-field="balance_b" inputmode="numeric" value="${light.color_balance.b}" placeholder="100">
+        </div>
       </div>
       <div>
         <label>Throttle (ms)</label>
@@ -434,6 +465,7 @@ async function saveLight(card) {
     max_transition_ms: get('max_transition_ms'),
     throttle: get('throttle'),
     color_profile: get('color_profile'),
+    color_balance: {r: get('balance_r'), g: get('balance_g'), b: get('balance_b')},
   };
   await api(`api/lights/${lightId}`, {
     method: 'POST',
