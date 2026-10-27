@@ -6,7 +6,7 @@ import os
 import time
 
 from emulated_hue.controllers import esphome_direct, wiz_direct
-from emulated_hue.controllers.color_utils import xy_brightness_to_rgb
+from emulated_hue.controllers.color_utils import gamut_for, xy_brightness_to_rgb
 from emulated_hue.controllers.devices import async_get_device
 
 from .models import Controller
@@ -163,9 +163,7 @@ class EntertainmentAPI:
             x = float((light_data[3] * 256 + light_data[4]) / 65535)
             y = float((light_data[5] * 256 + light_data[6]) / 65535)
             brightness = (light_data[7] * 256 + light_data[8]) / 65535
-            rgb = xy_brightness_to_rgb(
-                x, y, brightness, light_conf.get("esphome_gamut")
-            )
+            rgb = xy_brightness_to_rgb(x, y, brightness, gamut_for(light_conf))
 
         # Set per-light via the ingress config panel (see ingress.py) -
         # esphome_host/wiz_host being unset just means "use the normal

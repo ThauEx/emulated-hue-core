@@ -1,5 +1,10 @@
 """Tests for emulated_hue.controllers.color_utils."""
-from emulated_hue.controllers.color_utils import hs_to_rgb, xy_brightness_to_rgb
+from emulated_hue.controllers.color_utils import (
+    COLOR_PROFILES,
+    gamut_for,
+    hs_to_rgb,
+    xy_brightness_to_rgb,
+)
 
 
 def test_xy_brightness_to_rgb_y_zero_returns_black():
@@ -42,3 +47,22 @@ def test_hs_to_rgb_clamps_out_of_range_saturation():
     assert 0.0 <= r <= 1.0
     assert 0.0 <= g <= 1.0
     assert 0.0 <= b <= 1.0
+
+
+def test_srgb_profile_gives_orange_less_green_than_the_wide_default():
+    wide = xy_brightness_to_rgb(0.54, 0.41, 0.8)
+    srgb = xy_brightness_to_rgb(0.54, 0.41, 0.8, COLOR_PROFILES["srgb"])
+    assert srgb[1] / srgb[0] < wide[1] / wide[0]
+
+
+def test_gamut_for_defaults_to_none():
+    assert gamut_for({}) is None
+
+
+def test_gamut_for_resolves_a_named_profile():
+    assert gamut_for({"color_profile": "srgb"}) == COLOR_PROFILES["srgb"]
+
+
+def test_gamut_for_prefers_a_hand_set_matrix_over_the_profile():
+    custom = ((1, 0, 0), (0, 1, 0), (0, 0, 1))
+    assert gamut_for({"esphome_gamut": custom, "color_profile": "srgb"}) == custom

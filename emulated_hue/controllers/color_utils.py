@@ -20,6 +20,31 @@ _DEFAULT_XYZ_TO_RGB = (
 )
 
 
+# sRGB / Rec.709 primaries (D65). For lamps whose LEDs are less saturated than
+# a Hue's wide-gamut ones: the wide matrix hands them too much green and blue
+# for orange/yellow tones, which then look greenish.
+_SRGB_XYZ_TO_RGB = (
+    (3.2406, -1.5372, -0.4986),
+    (-0.9689, 1.8758, 0.0415),
+    (0.0557, -0.2040, 1.0570),
+)
+
+# Selectable per light via the "color_profile" light-config field.
+COLOR_PROFILES = {"wide": _DEFAULT_XYZ_TO_RGB, "srgb": _SRGB_XYZ_TO_RGB}
+
+
+def gamut_for(light_conf: dict) -> tuple | None:
+    """
+    Return the XYZ->RGB matrix to use for a light, None for the default.
+
+    A hand-set esphome_gamut matrix in the light config wins over the named
+    color_profile, so existing calibrated setups keep working unchanged.
+    """
+    return light_conf.get("esphome_gamut") or COLOR_PROFILES.get(
+        light_conf.get("color_profile")
+    )
+
+
 def _gamma_correct(component: float) -> float:
     """Apply sRGB gamma companding to a linear colour component."""
     if component <= 0.0031308:

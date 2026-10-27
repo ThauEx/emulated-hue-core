@@ -14,6 +14,7 @@ from aiohttp import web
 
 from emulated_hue.const import DEFAULT_THROTTLE_MS
 from emulated_hue.controllers import Controller
+from emulated_hue.controllers.color_utils import COLOR_PROFILES
 from emulated_hue.utils import (
     ClassRouteTableDef,
     send_error_response,
@@ -103,6 +104,7 @@ class HueIngressEndpoints:
                     "esphome_password_set": bool(conf.get("esphome_password")),
                     "max_transition_ms": conf.get("max_transition_ms", ""),
                     "throttle": conf.get("throttle", DEFAULT_THROTTLE_MS),
+                    "color_profile": conf.get("color_profile", ""),
                 }
             )
         result.sort(key=lambda item: int(item["light_id"]))
@@ -125,6 +127,13 @@ class HueIngressEndpoints:
         direct_type = data.get("type") or ""
         if direct_type not in ("", "esphome", "wiz"):
             return send_error_response(request.path, "invalid type", 4)
+        color_profile = data.get("color_profile") or ""
+        if color_profile and color_profile not in COLOR_PROFILES:
+            return send_error_response(request.path, "invalid color_profile", 6)
+        if color_profile:
+            light_conf["color_profile"] = color_profile
+        else:
+            light_conf.pop("color_profile", None)
 
         for field in DIRECT_PATH_FIELDS:
             if field != "esphome_password":
@@ -351,6 +360,13 @@ function fieldsHtml(light) {
         <input data-field="port" value="${light.port || ''}" placeholder="(default)">
       </div>
       <div>
+        <label>Color profile</label>
+        <select data-field="color_profile">
+          <option value="" ${light.color_profile === '' ? 'selected' : ''}>Wide (Hue, default)</option>
+          <option value="srgb" ${light.color_profile === 'srgb' ? 'selected' : ''}>sRGB</option>
+        </select>
+      </div>
+      <div>
         <label>Throttle (ms)</label>
         <input data-field="throttle" inputmode="numeric" value="${light.throttle}" placeholder="150">
       </div>
@@ -417,6 +433,7 @@ async function saveLight(card) {
     password: get('password'),
     max_transition_ms: get('max_transition_ms'),
     throttle: get('throttle'),
+    color_profile: get('color_profile'),
   };
   await api(`api/lights/${lightId}`, {
     method: 'POST',

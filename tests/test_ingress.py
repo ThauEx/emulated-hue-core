@@ -56,3 +56,28 @@ async def test_listing_twice_does_not_duplicate_lights(client):
     await test_client.get("/api/lights")
     response = await test_client.get("/api/lights")
     assert len(await response.json()) == 1
+
+
+async def test_color_profile_is_saved_and_returned(client):
+    test_client, _ = client
+    lights = await (await test_client.get("/api/lights")).json()
+    light_id = lights[0]["light_id"]
+
+    response = await test_client.post(
+        f"/api/lights/{light_id}", json={"type": "", "color_profile": "srgb"}
+    )
+    assert (await response.json())["success"]
+
+    lights = await (await test_client.get("/api/lights")).json()
+    assert lights[0]["color_profile"] == "srgb"
+
+
+async def test_unknown_color_profile_is_rejected(client):
+    test_client, _ = client
+    lights = await (await test_client.get("/api/lights")).json()
+    light_id = lights[0]["light_id"]
+
+    response = await test_client.post(
+        f"/api/lights/{light_id}", json={"type": "", "color_profile": "neon"}
+    )
+    assert "error" in (await response.text())
