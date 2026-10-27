@@ -13,8 +13,8 @@ import logging
 from aiohttp import web
 
 from emulated_hue.const import DEFAULT_THROTTLE_MS
-from emulated_hue.controllers import Controller
-from emulated_hue.controllers.color_utils import COLOR_PROFILES
+from emulated_hue.controllers import Controller, esphome_direct, wiz_direct
+from emulated_hue.controllers.color_utils import COLOR_PROFILES, apply_balance
 from emulated_hue.utils import (
     ClassRouteTableDef,
     send_error_response,
@@ -37,9 +37,14 @@ DIRECT_PATH_FIELDS = (
 )
 
 
+def _parse_balance(raw: dict | None) -> dict:
+    """Read a {"r", "g", "b"} percent dict from the browser, blanks meaning 100."""
+    return {channel: int((raw or {}).get(channel) or 100) for channel in "rgb"}
+
+
 def _store_color_balance(light_conf: dict, raw: dict | None) -> None:
     """Save the per-channel balance, dropping it again when it is all 100%."""
-    balance = {channel: int((raw or {}).get(channel) or 100) for channel in "rgb"}
+    balance = _parse_balance(raw)
     if all(value == 100 for value in balance.values()):
         light_conf.pop("color_balance", None)
     else:
@@ -205,6 +210,45 @@ class HueIngressEndpoints:
         )
         return send_json_response({"success": True})
 
+    @routes.post("/api/lights/{light_id}/test")
+    async def async_test_light(self, request: web.Request) -> web.Response:
+        """Show a test colour on a light (calibration), or switch it off."""
+        try:
+            data = json.loads(await request.text())
+            light_conf = await self.ctl.config_instance.async_get_light_config(
+                request.match_info["light_id"]
+            )
+            rgb = data.get("rgb")
+            if rgb is not None:
+                rgb = tuple(min(255, max(0, int(c))) / 255 for c in rgb)
+                rgb = apply_balance(
+                    rgb, {"color_balance": _parse_balance(data.get("color_balance"))}
+                )
+        except Exception:  # noqa: BLE001 - bad json/values/unknown light
+            return send_error_response(request.path, "invalid request", 2)
+
+        if light_conf.get("esphome_host"):
+            sent = await esphome_direct.async_send_light_state(
+                host=light_conf["esphome_host"],
+                port=light_conf.get("esphome_port") or esphome_direct.DEFAULT_PORT,
+                credential=light_conf.get("esphome_password", ""),
+                object_id=light_conf.get("esphome_object_id"),
+                power=rgb is not None,
+                rgb=rgb,
+                brightness=1.0,
+            )
+        elif light_conf.get("wiz_host"):
+            sent = await wiz_direct.async_send_light_state(
+                host=light_conf["wiz_host"],
+                port=light_conf.get("wiz_port") or wiz_direct.DEFAULT_PORT,
+                power=rgb is not None,
+                rgb=rgb,
+                brightness=1.0,
+            )
+        else:
+            return send_error_response(request.path, "light has no direct path", 8)
+        return send_json_response({"success": bool(sent)})
+
     @routes.get("/api/pairing")
     async def async_get_pairing(self, request: web.Request) -> web.Response:
         """Return current pairing (link mode) status."""
@@ -324,6 +368,22 @@ INDEX_HTML = """<!doctype html>
   .light-name { font-weight: 600; }
   .light-entity { color: var(--text-dim); font-size: 12px; }
   .balance { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+  .wand { display: flex; gap: 4px; }
+  .wand button { padding: 4px 10px; font-size: 16px; }
+  #calib { display: none; position: fixed; inset: 0; z-index: 10; }
+  #calib.open { display: block; }
+  #calib-sheet {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    background: rgba(16, 14, 23, 0.92);
+    padding: 14px 16px 18px;
+    border-radius: 16px 16px 0 0;
+  }
+  #calib-swatches { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .swatch { width: 34px; height: 34px; border-radius: 50%; border: 2px solid #fff6; padding: 0; }
+  .swatch.on { border-color: #fff; }
+  .calib-slider { display: grid; grid-template-columns: 18px 1fr 38px; gap: 8px; align-items: center; margin: 6px 0; font-size: 13px; }
+  .calib-slider input { padding: 0; }
+  #calib-hint { font-size: 12px; color: var(--text-dim); margin: 0 0 8px; }
   .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
   label { font-size: 11px; color: var(--text-dim); display: block; margin-bottom: 3px; }
   select, input {
@@ -358,6 +418,20 @@ INDEX_HTML = """<!doctype html>
     <div id="lights-container"><p class="empty">Loading&hellip;</p></div>
   </div>
 
+<div id="calib">
+  <div id="calib-sheet">
+    <p id="calib-hint">Hold the phone next to the lamp and drag the sliders until both colours look the same. Ambilight+Hue must be off on the TV.</p>
+    <div id="calib-swatches"></div>
+    <div class="calib-slider"><span>R</span><input type="range" min="1" max="100" data-ch="r"><span></span></div>
+    <div class="calib-slider"><span>G</span><input type="range" min="1" max="100" data-ch="g"><span></span></div>
+    <div class="calib-slider"><span>B</span><input type="range" min="1" max="100" data-ch="b"><span></span></div>
+    <div class="row-actions">
+      <button class="secondary" id="calib-cancel">Cancel</button>
+      <button id="calib-apply">Use these values</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const api = (path, opts) => fetch(path, opts).then(r => r.json());
 
@@ -391,10 +465,13 @@ function fieldsHtml(light) {
       </div>
       <div>
         <label>Color balance R / G / B (%)</label>
-        <div class="balance">
-          <input data-field="balance_r" inputmode="numeric" value="${light.color_balance.r}" placeholder="100">
-          <input data-field="balance_g" inputmode="numeric" value="${light.color_balance.g}" placeholder="100">
-          <input data-field="balance_b" inputmode="numeric" value="${light.color_balance.b}" placeholder="100">
+        <div class="wand">
+          <div class="balance">
+            <input data-field="balance_r" inputmode="numeric" value="${light.color_balance.r}" placeholder="100">
+            <input data-field="balance_g" inputmode="numeric" value="${light.color_balance.g}" placeholder="100">
+            <input data-field="balance_b" inputmode="numeric" value="${light.color_balance.b}" placeholder="100">
+          </div>
+          <button class="secondary" data-action="calibrate" title="Calibrate with test colours">&#129668;</button>
         </div>
       </div>
       <div>
@@ -449,6 +526,7 @@ function renderLights(lights) {
       });
     });
     card.querySelector('[data-action="save"]').addEventListener('click', () => saveLight(card));
+    card.querySelector('[data-action="calibrate"]').addEventListener('click', () => openCalibration(card));
     container.appendChild(card);
   }
 }
@@ -478,6 +556,79 @@ async function saveLight(card) {
   const dot = card.querySelector('.bulb-dot');
   dot.classList.toggle('active', !!payload.type);
 }
+
+const CALIB_COLORS = ['#ff6a00', '#ffc400', '#ffa000', '#ffd9a0', '#ff0000', '#00c800', '#0000ff', '#00d0d0', '#d000d0'];
+const calib = {card: null, rgb: null, timer: null};
+
+const hexToRgb = (hex) => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
+const calibBalance = () => Object.fromEntries(
+  [...document.querySelectorAll('#calib [data-ch]')].map(el => [el.dataset.ch, el.value]));
+
+function calibSend(rgb) {
+  api(`api/lights/${calib.card.dataset.lightId}/test`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({rgb, color_balance: calibBalance()}),
+  });
+}
+
+function calibShow(hex) {
+  calib.rgb = hexToRgb(hex);
+  document.getElementById('calib').style.background = hex;
+  document.querySelectorAll('.swatch').forEach(el => el.classList.toggle('on', el.dataset.hex === hex));
+  calibSend(calib.rgb);
+}
+
+async function openCalibration(card) {
+  // The test colour goes to the saved host, so store the card first.
+  await saveLight(card);
+  calib.card = card;
+  for (const ch of 'rgb') {
+    const value = card.querySelector(`[data-field="balance_${ch}"]`).value || 100;
+    const slider = document.querySelector(`#calib [data-ch="${ch}"]`);
+    slider.value = value;
+    slider.nextElementSibling.textContent = value;
+  }
+  const swatches = document.getElementById('calib-swatches');
+  if (!swatches.children.length) {
+    for (const hex of CALIB_COLORS) {
+      const btn = document.createElement('button');
+      btn.className = 'swatch';
+      btn.dataset.hex = hex;
+      btn.style.background = hex;
+      btn.addEventListener('click', () => calibShow(hex));
+      swatches.appendChild(btn);
+    }
+  }
+  document.getElementById('calib').classList.add('open');
+  calibShow(CALIB_COLORS[0]);
+}
+
+function closeCalibration(apply) {
+  document.getElementById('calib').classList.remove('open');
+  if (apply) {
+    const balance = calibBalance();
+    for (const ch of 'rgb') {
+      calib.card.querySelector(`[data-field="balance_${ch}"]`).value = balance[ch];
+    }
+    saveLight(calib.card);
+  }
+  api(`api/lights/${calib.card.dataset.lightId}/test`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({}),
+  });
+}
+
+document.querySelectorAll('#calib [data-ch]').forEach(slider => {
+  slider.addEventListener('input', () => {
+    slider.nextElementSibling.textContent = slider.value;
+    clearTimeout(calib.timer);
+    calib.timer = setTimeout(() => calibSend(calib.rgb), 80);
+  });
+});
+document.getElementById('calib-cancel').addEventListener('click', () => closeCalibration(false));
+document.getElementById('calib-apply').addEventListener('click', () => closeCalibration(true));
 
 async function loadLights() {
   const lights = await api('api/lights');
