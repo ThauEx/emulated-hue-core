@@ -375,7 +375,11 @@ INDEX_HTML = """<!doctype html>
   .light-name { font-weight: 600; }
   .light-entity { color: var(--text-dim); font-size: 12px; }
   .balance { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
-  .wand { display: flex; gap: 4px; }
+  .wand { display: flex; gap: 6px; }
+  .balance-field { grid-column: span 2; }
+  details.tuning { margin-top: 2px; }
+  details.tuning summary { cursor: pointer; font-size: 12px; color: var(--text-dim); margin-bottom: 8px; }
+  .tuning-summary { opacity: 0.7; margin-left: 6px; }
   .wand button { padding: 4px 10px; font-size: 16px; }
   #calib { display: none; position: fixed; inset: 0; z-index: 10; }
   #calib.open { display: block; }
@@ -445,6 +449,12 @@ const api = (path, opts) => fetch(path, opts).then(r => r.json());
 function fieldsHtml(light) {
   const showEsphome = light.type === 'esphome';
   const showWiz = light.type === 'wiz';
+  const balance = light.color_balance;
+  const summary = [
+    light.color_profile === 'srgb' ? 'sRGB' : 'Wide',
+    `balance ${balance.r}/${balance.g}/${balance.b}`,
+    `${light.throttle} ms`,
+  ].join(' \u00b7 ');
   return `
     <div class="fields">
       <div>
@@ -463,32 +473,6 @@ function fieldsHtml(light) {
         <label>Port</label>
         <input data-field="port" value="${light.port || ''}" placeholder="(default)">
       </div>
-      <div>
-        <label>Color profile</label>
-        <select data-field="color_profile">
-          <option value="" ${light.color_profile === '' ? 'selected' : ''}>Wide (Hue, default)</option>
-          <option value="srgb" ${light.color_profile === 'srgb' ? 'selected' : ''}>sRGB</option>
-        </select>
-      </div>
-      <div>
-        <label>Color balance R / G / B (%)</label>
-        <div class="wand">
-          <div class="balance">
-            <input data-field="balance_r" inputmode="numeric" value="${light.color_balance.r}" placeholder="100">
-            <input data-field="balance_g" inputmode="numeric" value="${light.color_balance.g}" placeholder="100">
-            <input data-field="balance_b" inputmode="numeric" value="${light.color_balance.b}" placeholder="100">
-          </div>
-          <button class="secondary" data-action="calibrate" title="Calibrate with test colours">&#129668;</button>
-        </div>
-      </div>
-      <div>
-        <label>Throttle (ms)</label>
-        <input data-field="throttle" inputmode="numeric" value="${light.throttle}" placeholder="150">
-      </div>
-      <div>
-        <label>Max. transition (ms)</label>
-        <input data-field="max_transition_ms" inputmode="numeric" value="${light.max_transition_ms === '' ? '' : light.max_transition_ms}" placeholder="no limit">
-      </div>
       <div class="esphome-only" style="${showEsphome ? '' : 'display:none'}">
         <label>Object ID</label>
         <input data-field="object_id" value="${light.object_id || ''}" placeholder="optional">
@@ -497,7 +481,38 @@ function fieldsHtml(light) {
         <label>Password / Noise PSK</label>
         <input data-field="password" type="password" placeholder="${light.esphome_password_set ? '(unchanged)' : ''}">
       </div>
-    </div>`;
+    </div>
+    <details class="tuning">
+      <summary>Tuning <span class="tuning-summary">${summary}</span></summary>
+      <div class="fields">
+        <div>
+          <label>Color profile</label>
+          <select data-field="color_profile">
+            <option value="" ${light.color_profile === '' ? 'selected' : ''}>Wide (Hue, default)</option>
+            <option value="srgb" ${light.color_profile === 'srgb' ? 'selected' : ''}>sRGB</option>
+          </select>
+        </div>
+        <div class="balance-field">
+          <label>Color balance R / G / B (%)</label>
+          <div class="wand">
+            <div class="balance">
+              <input data-field="balance_r" inputmode="numeric" value="${balance.r}" placeholder="100">
+              <input data-field="balance_g" inputmode="numeric" value="${balance.g}" placeholder="100">
+              <input data-field="balance_b" inputmode="numeric" value="${balance.b}" placeholder="100">
+            </div>
+            <button class="secondary" data-action="calibrate" title="Calibrate with test colours">&#129668;</button>
+          </div>
+        </div>
+        <div>
+          <label>Throttle (ms)</label>
+          <input data-field="throttle" inputmode="numeric" value="${light.throttle}" placeholder="150">
+        </div>
+        <div>
+          <label>Max. transition (ms)</label>
+          <input data-field="max_transition_ms" inputmode="numeric" value="${light.max_transition_ms === '' ? '' : light.max_transition_ms}" placeholder="no limit">
+        </div>
+      </div>
+    </details>`;
 }
 
 function renderLights(lights) {
