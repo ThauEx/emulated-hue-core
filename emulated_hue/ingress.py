@@ -53,6 +53,28 @@ def _store_color_balance(light_conf: dict, raw: dict | None) -> None:
         }
 
 
+def _store_direct_target(
+    light_conf: dict, direct_type: str, host: str, port: int | None, data: dict
+) -> None:
+    """Write the esphome/wiz host settings of a light into its config."""
+    if direct_type == "esphome":
+        light_conf["esphome_host"] = host
+        if port:
+            light_conf["esphome_port"] = port
+        if data.get("password"):
+            # A blank password field means "keep the existing one" - we
+            # never send the real secret back to the browser to edit.
+            light_conf["esphome_password"] = data["password"]
+        if data.get("object_id"):
+            light_conf["esphome_object_id"] = data["object_id"].strip()
+    else:
+        light_conf.pop("esphome_password", None)
+        if direct_type == "wiz":
+            light_conf["wiz_host"] = host
+            if port:
+                light_conf["wiz_port"] = port
+
+
 class HueIngressEndpoints:
     """Ingress panel endpoints."""
 
@@ -188,22 +210,7 @@ class HueIngressEndpoints:
             light_conf["max_transition_ms"] = max(0, max_transition)
         light_conf["throttle"] = max(0, throttle)
 
-        if direct_type == "esphome":
-            light_conf["esphome_host"] = host
-            if port:
-                light_conf["esphome_port"] = port
-            if data.get("password"):
-                # A blank password field means "keep the existing one" - we
-                # never send the real secret back to the browser to edit.
-                light_conf["esphome_password"] = data["password"]
-            if data.get("object_id"):
-                light_conf["esphome_object_id"] = data["object_id"].strip()
-        else:
-            light_conf.pop("esphome_password", None)
-            if direct_type == "wiz":
-                light_conf["wiz_host"] = host
-                if port:
-                    light_conf["wiz_port"] = port
+        _store_direct_target(light_conf, direct_type, host, port, data)
 
         await self.ctl.config_instance.async_set_storage_value(
             "lights", light_id, light_conf
