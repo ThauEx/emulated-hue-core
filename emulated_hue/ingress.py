@@ -579,7 +579,7 @@ async function saveLight(card) {
   dot.classList.toggle('active', !!payload.type);
 }
 
-const CALIB_COLORS = ['#ff6a00', '#ffc400', '#ffa000', '#ffd9a0', '#ff0000', '#00c800', '#0000ff', '#00d0d0', '#d000d0'];
+const CALIB_COLORS = ['#ff6a00', '#ffc400', '#ffa000', '#ffd9a0', '#ff0000', '#00c800', '#0000ff', '#6a00ff', '#8a2be2', '#d000d0', '#00d0d0'];
 const calib = {card: null, rgb: null, timer: null};
 
 const hexToRgb = (hex) => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
