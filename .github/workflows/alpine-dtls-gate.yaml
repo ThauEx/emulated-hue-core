@@ -1,0 +1,23 @@
+name: Alpine DTLS-PSK gate
+
+# Throwaway check for the planned move to the Alpine-based hassio-addons base
+# image: does Alpine's OpenSSL run the same `s_server -dtls -psk` the
+# Entertainment service uses, and complete a real DTLS-PSK handshake?
+
+on:
+  push:
+    branches: ["gate/**"]
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ["alpine:3.22", "alpine:3.24", "ghcr.io/hassio-addons/base:21.0.9"]
+    steps:
+      - uses: actions/checkout@v7
+      - name: DTLS-PSK round trip
+        run: |
+          docker run --rm -v "$PWD/.github/scripts:/scripts:ro" ${{ matrix.image }} \
+            sh -c 'apk add --no-cache openssl >/dev/null 2>&1; sh /scripts/dtls_psk_check.sh'
