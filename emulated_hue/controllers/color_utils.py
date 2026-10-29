@@ -45,6 +45,18 @@ def gamut_for(light_conf: dict) -> tuple | None:
     )
 
 
+# ESPHome throws away the overall level of the rgb it is sent (it only keeps
+# the ratio between the channels), so the level has to travel in the separate
+# brightness field. That field is gamma-corrected by the lamp, so a floor keeps
+# very dark frames from rounding to "off".
+MIN_LAMP_BRIGHTNESS = 0.02
+
+
+def lamp_brightness(rgb: tuple[float, float, float]) -> float:
+    """Return the level (0-1) a colour should be shown at on an ESPHome lamp."""
+    return min(1.0, max(MIN_LAMP_BRIGHTNESS, *rgb))
+
+
 def apply_balance(
     rgb: tuple[float, float, float] | None, light_conf: dict
 ) -> tuple[float, float, float] | None:

@@ -11,7 +11,13 @@ from emulated_hue.const import ENTERTAINMENT_UPDATE_STATE_UPDATE_RATE
 from emulated_hue.utils import clamp
 
 from . import esphome_direct, wiz_direct
-from .color_utils import apply_balance, gamut_for, hs_to_rgb, xy_brightness_to_rgb
+from .color_utils import (
+    apply_balance,
+    gamut_for,
+    hs_to_rgb,
+    lamp_brightness,
+    xy_brightness_to_rgb,
+)
 from .models import ALL_STATES, Controller, EntityState
 
 LOGGER = logging.getLogger(__name__)
@@ -385,6 +391,7 @@ class OnOffDevice:
             ):
                 color_temp = control_state.color_temp
 
+        rgb_level = lamp_brightness(rgb) if xy_brightness is not None else None
         rgb = apply_balance(rgb, conf)
 
         brightness = (
@@ -393,11 +400,12 @@ class OnOffDevice:
         if xy_brightness is not None:
             brightness = xy_brightness
 
-        # xy_brightness_to_rgb already includes the brightness in rgb. ESPHome
-        # would multiply its own brightness on top, so send 1.0 - otherwise
-        # bri 96 (38%) lands at roughly 2% light after ESPHome's gamma, and
-        # a lamp dimmed earlier keeps that dimmed level.
-        esphome_brightness = 1.0 if xy_brightness is not None else brightness
+        # xy_brightness_to_rgb already includes the brightness in rgb, but
+        # ESPHome discards the level of rgb and keeps only the channel ratio -
+        # so the level goes into the brightness field instead.
+        esphome_brightness = brightness
+        if xy_brightness is not None and rgb_level is not None:
+            esphome_brightness = rgb_level
 
         if esphome_host and await esphome_direct.async_send_light_state(
             host=esphome_host,

@@ -9,6 +9,7 @@ from emulated_hue.controllers import esphome_direct, wiz_direct
 from emulated_hue.controllers.color_utils import (
     apply_balance,
     gamut_for,
+    lamp_brightness,
     xy_brightness_to_rgb,
 )
 from emulated_hue.controllers.devices import async_get_device
@@ -190,9 +191,9 @@ class EntertainmentAPI:
                 credential=light_conf.get("esphome_password", ""),
                 object_id=light_conf.get("esphome_object_id"),
                 rgb=direct_rgb,
-                # Stream frames carry absolute levels (brightness already in
-                # rgb); ESPHome must not scale them a second time.
-                brightness=1.0,
+                # The lamp only keeps the ratio between the rgb channels, so
+                # the frame's level goes in the brightness field.
+                brightness=lamp_brightness(rgb),
                 # Let the lamp fade across the gap between accepted frames
                 # instead of stepping from colour to colour.
                 transition_ms=throttle_ms,

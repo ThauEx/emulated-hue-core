@@ -1,9 +1,9 @@
 """
-Regression tests for how brightness is passed to the direct ESPHome path.
+Tests for how brightness is passed to the direct ESPHome path.
 
-xy_brightness_to_rgb() already bakes the brightness into rgb, and ESPHome
-multiplies its own brightness on top (before gamma). Sending both made a
-Hue bri of 96 land at roughly 2% light instead of ~30%.
+ESPHome keeps only the ratio between the rgb channels and discards their
+overall level, so the Ambilight/Hue brightness has to travel in the separate
+brightness field - otherwise every colour would show at full brightness.
 """
 from types import SimpleNamespace
 
@@ -14,8 +14,10 @@ from emulated_hue.controllers.models import EntityState
 
 
 class _FakeConfig:
+    light_conf = {"esphome_host": "lamp.local"}
+
     def get_storage_value(self, key, subkey=None, default=None):
-        return {"esphome_host": "lamp.local"}
+        return self.light_conf
 
 
 def _device(monkeypatch, known_brightness=100):
@@ -42,18 +44,31 @@ def _xy_state(brightness):
     )
 
 
-async def test_xy_frame_sends_esphome_brightness_one(monkeypatch):
+async def test_xy_frame_level_goes_into_the_brightness_field(monkeypatch):
     device, sent = _device(monkeypatch)
-    assert await device._async_maybe_send_direct(_xy_state(96))
-    assert sent["brightness"] == 1.0
+    assert await device._async_maybe_send_direct(_xy_state(254))
+    bright = sent["brightness"]
+    assert await device._async_maybe_send_direct(_xy_state(60))
+    assert sent["brightness"] < bright
+    assert sent["brightness"] == max(sent["rgb"])
 
 
-async def test_dimmer_xy_frame_yields_dimmer_rgb(monkeypatch):
+async def test_balance_does_not_change_the_brightness(monkeypatch):
     device, sent = _device(monkeypatch)
-    await device._async_maybe_send_direct(_xy_state(254))
-    bright = max(sent["rgb"])
-    await device._async_maybe_send_direct(_xy_state(60))
-    assert max(sent["rgb"]) < bright
+    await device._async_maybe_send_direct(_xy_state(150))
+    plain = sent["brightness"]
+    device.ctl.config_instance.light_conf = {
+        "esphome_host": "lamp.local",
+        "color_balance": {"r": 100, "g": 50, "b": 50},
+    }
+    await device._async_maybe_send_direct(_xy_state(150))
+    assert sent["brightness"] == plain
+
+
+async def test_black_frame_keeps_a_brightness_floor(monkeypatch):
+    device, sent = _device(monkeypatch)
+    await device._async_maybe_send_direct(_xy_state(1))
+    assert sent["brightness"] >= 0.02
 
 
 async def test_xy_frame_without_bri_uses_the_lights_known_brightness(monkeypatch):
