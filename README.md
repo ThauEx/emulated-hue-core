@@ -12,6 +12,8 @@ Fork of the original [hass-emulated-hue/core](https://github.com/hass-emulated-h
 - **An ingress web UI** (`emulated_hue/ingress.py`) for assigning each light's direct-path target and triggering pairing mode - see "Direct-path light configuration" below.
 - **A CLIP v2 API** (`emulated_hue/apiv2.py`, `/clip/v2/resource/...`): modern Hue clients (including current-generation Ambilight+Hue TV firmware) set up real Entertainment (DTLS/UDP) streaming through CLIP v2's `entertainment_configuration` resource rather than the legacy v1 group mechanism, which this bridge didn't implement at all before. It's a thin routing/JSON-shape layer over the *same* v1 storage and Entertainment engine - no parallel data model. Scoped to what Entertainment needs (`bridge`, `device`, `light`, `entertainment`, `entertainment_configuration`); deliberately doesn't implement the `/eventstream/clip/v2` SSE endpoint (confirmed unnecessary for Entertainment specifically) or non-Entertainment v2 resources (rooms/zones/scenes/etc).
 
+- **Built on the Home Assistant community add-on base image** (`ghcr.io/hassio-addons/base`, Alpine, with its s6-overlay and bashio) and a current Python, instead of a custom Debian image. The Entertainment DTLS-PSK server (`openssl s_server`) works there, so there is no need for a separate image any more.
+
 None of this requires re-pairing or changes your existing v1 setup - both APIs run side by side.
 
 ## Features
@@ -112,9 +114,7 @@ The emulated Hue component in Home Assistant is a very basic implemention of the
 
 
 #### Why is this an addon and not a Home Assistant integration
-Well this project actually started as integration, but we ran into some serious trouble:
-1) HUE requires the HUB to be on HTTP port 80 and HTTPS port 443
-2) The entertainment mode executable is not working with the Alpine docker image from Home Assistant.
+Well this project actually started as integration, but we ran into some serious trouble: HUE requires the HUB to be on HTTP port 80 and HTTPS port 443, which an integration running inside Home Assistant can't provide.
 
 The current approach gives you the flexibility of running the emulated HUE bridge on a diferent machine than HA.
 
