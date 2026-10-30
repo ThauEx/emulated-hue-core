@@ -1,4 +1,5 @@
 """Tests for the ingress panel's light list."""
+
 import pytest
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
@@ -104,24 +105,18 @@ async def test_color_balance_is_saved_and_defaults_are_dropped(client):
     assert lights[0]["color_balance"] == {"r": 100, "g": 100, "b": 100}
 
 
-async def test_test_color_is_sent_with_balance_to_the_saved_esphome_light(
-    client, monkeypatch
-):
+async def test_test_color_is_sent_with_balance_to_the_saved_esphome_light(client, monkeypatch):
     test_client, _ = client
     lights = await (await test_client.get("/api/lights")).json()
     light_id = lights[0]["light_id"]
-    await test_client.post(
-        f"/api/lights/{light_id}", json={"type": "esphome", "host": "10.0.0.5"}
-    )
+    await test_client.post(f"/api/lights/{light_id}", json={"type": "esphome", "host": "10.0.0.5"})
     sent = {}
 
     async def fake_send(**kwargs):
         sent.update(kwargs)
         return True
 
-    monkeypatch.setattr(
-        ingress_module.esphome_direct, "async_send_light_state", fake_send
-    )
+    monkeypatch.setattr(ingress_module.esphome_direct, "async_send_light_state", fake_send)
 
     response = await test_client.post(
         f"/api/lights/{light_id}/test",

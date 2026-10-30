@@ -1,4 +1,5 @@
 """Support UPNP discovery method that mimics Hue hubs."""
+
 import asyncio
 import logging
 import os
@@ -76,14 +77,10 @@ hue-bridgeid: {bridge_id}
 ST: {device_type}
 USN: {bridge_uuid}
 
-""".replace(
-            "\n", "\r\n"
-        )
+""".replace("\n", "\r\n")
         self._resp_format = resp_template.format(
             ip_addr=config.ip_addr,
-            port_num=const.HUE_HTTP_PORT
-            if config.use_default_ports
-            else config.http_port,
+            port_num=const.HUE_HTTP_PORT if config.use_default_ports else config.http_port,
             bridge_id=config.bridge_id,
             device_type="{device_type}",
             bridge_uuid=f"uuid:{config.bridge_uid}",

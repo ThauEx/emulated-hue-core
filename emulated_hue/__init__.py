@@ -1,4 +1,5 @@
 """Support for local control of entities by emulating a Philips Hue bridge."""
+
 import logging
 
 from . import controllers

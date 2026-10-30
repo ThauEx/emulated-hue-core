@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Script to publish docker images and manifests."""
+
 from __future__ import annotations
 
 import argparse
@@ -40,9 +41,7 @@ parser.add_argument(
     required=True,
     help="Repo to publish to (includes registry if not Docker Hub)",
 )
-parser.add_argument(
-    "--latest", required=False, action="store_true", help="Publish latest tag"
-)
+parser.add_argument("--latest", required=False, action="store_true", help="Publish latest tag")
 parser.add_argument(
     "--dry-run",
     required=False,
@@ -65,9 +64,7 @@ parser.add_argument(
     help="GitHub SHA to append to tags if ci is not specified",
 )
 group = parser.add_mutually_exclusive_group(required=True)
-group.add_argument(
-    "--image", action="store_true", help="Publish architecture image to all tags"
-)
+group.add_argument("--image", action="store_true", help="Publish architecture image to all tags")
 group.add_argument(
     "--manifest",
     action="store_true",
@@ -106,8 +103,7 @@ class DockerNames:
     @staticmethod
     def _clean_list(duplicates: list) -> list:
         cleaned = [x.replace(":-", ":") for x in duplicates if not x.endswith(":")]
-        cleaned = list(set(cleaned))
-        return cleaned
+        return list(set(cleaned))
 
     @classmethod
     def from_args(cls, args):
@@ -137,9 +133,7 @@ class DockerNames:
                 for publish_name in PUBLISH_NAMES
             ]
             if args.latest:
-                preformatted_names.append(
-                    PUBLISH_LATEST.format(repo=args.repo, arch=args.arch)
-                )
+                preformatted_names.append(PUBLISH_LATEST.format(repo=args.repo, arch=args.arch))
             preformatted_names = cls._clean_list(preformatted_names)
             ci_name = args.image_name
 

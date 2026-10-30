@@ -1,6 +1,8 @@
 """Tests for emulated_hue.controllers.color_utils."""
+
 from emulated_hue.controllers.color_utils import (
     COLOR_PROFILES,
+    apply_balance,
     gamut_for,
     hs_to_rgb,
     xy_brightness_to_rgb,
@@ -69,14 +71,10 @@ def test_gamut_for_prefers_a_hand_set_matrix_over_the_profile():
 
 
 def test_color_balance_scales_channels_and_clamps():
-    from emulated_hue.controllers.color_utils import apply_balance
-
     conf = {"color_balance": {"r": 100, "g": 50, "b": 100}}
     assert apply_balance((1.0, 0.8, 0.2), conf) == (1.0, 0.4, 0.2)
 
 
 def test_color_balance_absent_leaves_rgb_untouched():
-    from emulated_hue.controllers.color_utils import apply_balance
-
     assert apply_balance((0.3, 0.6, 0.9), {}) == (0.3, 0.6, 0.9)
     assert apply_balance(None, {"color_balance": {"g": 50}}) is None

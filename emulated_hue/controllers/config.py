@@ -1,4 +1,5 @@
 """Hold configuration variables for the emulated hue bridge."""
+
 import asyncio
 import copy
 import datetime
@@ -175,16 +176,7 @@ class Config:
             next_light_id = str(max(int(k) for k in lights) + 1)
         # generate unique id (fake zigbee address) from entity id
         unique_id = hashlib.md5(entity_id.encode()).hexdigest()
-        unique_id = "00:{}:{}:{}:{}:{}:{}:{}-{}".format(
-            unique_id[0:2],
-            unique_id[2:4],
-            unique_id[4:6],
-            unique_id[6:8],
-            unique_id[8:10],
-            unique_id[10:12],
-            unique_id[12:14],
-            unique_id[14:16],
-        )
+        unique_id = f"00:{unique_id[0:2]}:{unique_id[2:4]}:{unique_id[4:6]}:{unique_id[6:8]}:{unique_id[8:10]}:{unique_id[10:12]}:{unique_id[12:14]}-{unique_id[14:16]}"
         # create default light config
         light_config = {
             "entity_id": entity_id,
@@ -259,9 +251,7 @@ class Config:
         """Get a value from persistent storage."""
         return self.get_storage_value(key, subkey, default)
 
-    def get_storage_value(
-        self, key: str, subkey: str = None, default: Any | None = None
-    ) -> Any:
+    def get_storage_value(self, key: str, subkey: str = None, default: Any | None = None) -> Any:
         """
         Get a value from persistent storage.
 
@@ -278,9 +268,7 @@ class Config:
             return copy.deepcopy(main_val.get(subkey, default))
         return copy.deepcopy(main_val)
 
-    async def async_set_storage_value(
-        self, key: str, subkey: str, value: str | dict
-    ) -> None:
+    async def async_set_storage_value(self, key: str, subkey: str, value: str | dict) -> None:
         """Set a value in persistent storage."""
         needs_save = False
         if subkey is None and self._config.get(key) != value:
@@ -336,9 +324,7 @@ class Config:
         """Get details for given username."""
         user_data = await self.async_get_storage_value("users", username)
         if user_data:
-            user_data["last use date"] = (
-                datetime.datetime.now().isoformat().split(".")[0]
-            )
+            user_data["last use date"] = datetime.datetime.now().isoformat().split(".")[0]
             await self.async_set_storage_value("users", username, user_data)
         return user_data
 
@@ -394,9 +380,7 @@ class Config:
         """Return seconds left in the current link-mode window, 0 if inactive."""
         if not self._link_mode_enabled or not self._link_mode_expires_at:
             return 0
-        return max(
-            0, round(self._link_mode_expires_at - datetime.datetime.now().timestamp())
-        )
+        return max(0, round(self._link_mode_expires_at - datetime.datetime.now().timestamp()))
 
     async def async_enable_link_mode_discovery(self) -> None:
         """Enable link mode discovery (notification) for the duration of 5 minutes."""
@@ -416,9 +400,7 @@ class Config:
         msg = "Click the link below to enable pairing mode on the virtual bridge:\n\n"
         msg += f"**[Enable link mode]({url})**"
 
-        await self.ctl.controller_hass.async_create_notification(
-            msg, "hue_bridge_link_requested"
-        )
+        await self.ctl.controller_hass.async_create_notification(msg, "hue_bridge_link_requested")
 
         # make sure that the notification and link request are dismissed after 5 minutes
 
@@ -430,9 +412,7 @@ class Config:
     async def async_disable_link_mode_discovery(self) -> None:
         """Disable link mode discovery (remove notification in hass)."""
         self._link_mode_discovery_key = None
-        await self.ctl.controller_hass.async_dismiss_notification(
-            "hue_bridge_link_requested"
-        )
+        await self.ctl.controller_hass.async_dismiss_notification("hue_bridge_link_requested")
 
     def start_entertainment(self, group_conf: dict, user_data: dict) -> bool:
         """Start the entertainment mode server."""

@@ -17,6 +17,7 @@ it; it's only used by clients for general UI push updates. Also out of
 scope: rooms/zones/scenes/buttons/sensors v2 resources - not needed for
 Entertainment.
 """
+
 import functools
 import logging
 import uuid
@@ -52,7 +53,7 @@ def check_request_v2(func):
     """Validate the hue-application-key header (the same token v1 calls "username")."""
 
     @functools.wraps(func)
-    async def wrapped_func(cls: "HueApiV2Endpoints", request: web.Request):
+    async def wrapped_func(cls: HueApiV2Endpoints, request: web.Request):
         global _logged_first_v2_request  # noqa: PLW0603
         LOGGER.debug("[%s] %s %s", request.remote, request.method, request.path)
         token = request.headers.get("hue-application-key", "")
@@ -139,23 +140,17 @@ class HueApiV2Endpoints:
                 "product_name": "Hue Bridge",
                 "product_archetype": "bridge_v2",
                 "certified": True,
-                "software_version": cfg.definitions.get("bridge", {}).get(
-                    "swversion", ""
-                ),
+                "software_version": cfg.definitions.get("bridge", {}).get("swversion", ""),
             },
             "metadata": {"name": cfg.bridge_name, "archetype": "bridge_v2"},
             "services": [{"rid": _v2_id("bridge", cfg.bridge_id), "rtype": "bridge"}],
         }
 
     async def _async_light_ids(self) -> dict:
-        return await self.ctl.config_instance.async_get_storage_value(
-            "lights", default={}
-        )
+        return await self.ctl.config_instance.async_get_storage_value("lights", default={})
 
     async def _async_groups(self) -> dict:
-        return await self.ctl.config_instance.async_get_storage_value(
-            "groups", default={}
-        )
+        return await self.ctl.config_instance.async_get_storage_value("groups", default={})
 
     async def _async_light_resource(self, light_id: str, light_conf: dict) -> dict:
         state = light_conf.get("state") or {}
@@ -171,9 +166,7 @@ class HueApiV2Endpoints:
             "on": {"on": bool(state.get("power_state", True))},
         }
 
-    async def _async_light_device_resource(
-        self, light_id: str, light_conf: dict
-    ) -> dict:
+    async def _async_light_device_resource(self, light_id: str, light_conf: dict) -> dict:
         archetype = (light_conf.get("config") or {}).get("archetype", "sultanbulb")
         return {
             "id": _v2_id("device", light_id),
@@ -259,8 +252,7 @@ class HueApiV2Endpoints:
             "channels": channels,
             "locations": {"service_locations": []},
             "light_services": [
-                {"rid": _v2_id("light", light_id), "rtype": "light"}
-                for light_id in light_ids
+                {"rid": _v2_id("light", light_id), "rtype": "light"} for light_id in light_ids
             ],
         }
         if active and stream.get("owner"):
@@ -298,9 +290,7 @@ class HueApiV2Endpoints:
         for group_id, group_conf in (await self._async_groups()).items():
             if "stream" in group_conf:
                 data.append(
-                    await self._async_entertainment_configuration_resource(
-                        group_id, group_conf
-                    )
+                    await self._async_entertainment_configuration_resource(group_id, group_conf)
                 )
         return send_json_response(_envelope(data))
 
@@ -358,9 +348,7 @@ class HueApiV2Endpoints:
 
     @routes.get("/clip/v2/resource/entertainment_configuration")
     @check_request_v2
-    async def async_get_entertainment_configurations(
-        self, request: web.Request, token: str
-    ):
+    async def async_get_entertainment_configurations(self, request: web.Request, token: str):
         """Return all entertainment_configuration resources (v1 Entertainment groups)."""
         data = [
             await self._async_entertainment_configuration_resource(group_id, group_conf)
@@ -371,21 +359,13 @@ class HueApiV2Endpoints:
 
     @routes.get("/clip/v2/resource/entertainment_configuration/{id}")
     @check_request_v2
-    async def async_get_entertainment_configuration(
-        self, request: web.Request, token: str
-    ):
+    async def async_get_entertainment_configuration(self, request: web.Request, token: str):
         """Return a single entertainment_configuration resource by id."""
-        group_id, group_conf = await self._async_find_group_by_v2_id(
-            request.match_info["id"]
-        )
+        group_id, group_conf = await self._async_find_group_by_v2_id(request.match_info["id"])
         if group_conf is None:
             return send_json_response(_error("not found"))
         return send_json_response(
-            _envelope(
-                await self._async_entertainment_configuration_resource(
-                    group_id, group_conf
-                )
-            )
+            _envelope(await self._async_entertainment_configuration_resource(group_id, group_conf))
         )
 
     @routes.post("/clip/v2/resource/entertainment_configuration")
@@ -398,9 +378,7 @@ class HueApiV2Endpoints:
         for channel in request_data.get("channels", []):
             for member in channel.get("members", []):
                 rid = (member.get("service") or {}).get("rid")
-                light_id = rid and await self._async_light_id_from_entertainment_rid(
-                    rid
-                )
+                light_id = rid and await self._async_light_id_from_entertainment_rid(rid)
                 if light_id and light_id not in light_ids:
                     light_ids.append(light_id)
 
@@ -416,9 +394,7 @@ class HueApiV2Endpoints:
             "state": {"any_on": False, "all_on": False},
             "stream": {"active": False, "proxymode": "auto", "proxynode": "/bridge"},
         }
-        await self.ctl.config_instance.async_set_storage_value(
-            "groups", next_id, group_conf
-        )
+        await self.ctl.config_instance.async_set_storage_value("groups", next_id, group_conf)
         resource_id = _v2_id("entertainment_configuration", next_id)
         return send_json_response(
             {
@@ -433,9 +409,7 @@ class HueApiV2Endpoints:
         self, request: web.Request, request_data: dict, token: str
     ):
         """Update metadata, or start/stop streaming via the "action" field."""
-        group_id, group_conf = await self._async_find_group_by_v2_id(
-            request.match_info["id"]
-        )
+        group_id, group_conf = await self._async_find_group_by_v2_id(request.match_info["id"])
         if group_conf is None:
             return send_json_response(_error("not found"))
 
@@ -457,9 +431,7 @@ class HueApiV2Endpoints:
             self.ctl.config_instance.stop_entertainment()
             group_conf["stream"] = {**group_conf.get("stream", {}), "active": False}
 
-        await self.ctl.config_instance.async_set_storage_value(
-            "groups", group_id, group_conf
-        )
+        await self.ctl.config_instance.async_set_storage_value("groups", group_id, group_conf)
         return send_json_response(
             {
                 "errors": [],
@@ -474,13 +446,9 @@ class HueApiV2Endpoints:
 
     @routes.delete("/clip/v2/resource/entertainment_configuration/{id}")
     @check_request_v2
-    async def async_delete_entertainment_configuration(
-        self, request: web.Request, token: str
-    ):
+    async def async_delete_entertainment_configuration(self, request: web.Request, token: str):
         """Delete the underlying v1 Entertainment group."""
-        group_id, group_conf = await self._async_find_group_by_v2_id(
-            request.match_info["id"]
-        )
+        group_id, group_conf = await self._async_find_group_by_v2_id(request.match_info["id"])
         if group_conf is None:
             return send_json_response(_error("not found"))
         await self.ctl.config_instance.async_delete_storage_value("groups", group_id)

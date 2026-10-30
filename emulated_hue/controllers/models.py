@@ -1,4 +1,5 @@
 """Device state model."""
+
 import asyncio
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
@@ -41,14 +42,11 @@ class EntityState(BaseModel):
     effect: str | None = None
     color_mode: str | None = None
 
-    def __eq__(self, other):
+    def __eq__(self, other: EntityState) -> bool:
         """Compare states."""
-        other: EntityState = other
         power_state_equal = self.power_state == other.power_state
         brightness_equal = self.brightness == other.brightness
-        color_attribute = (
-            self._get_color_mode_attribute() == other._get_color_mode_attribute()
-        )
+        color_attribute = self._get_color_mode_attribute() == other._get_color_mode_attribute()
         return power_state_equal and brightness_equal and color_attribute
 
     model_config = ConfigDict(validate_assignment=True)

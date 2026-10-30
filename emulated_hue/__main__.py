@@ -1,4 +1,5 @@
 """Emulated Hue quick start."""
+
 import argparse
 import asyncio
 import logging
@@ -15,9 +16,7 @@ IS_SUPERVISOR = os.path.isfile("/data/options.json") and os.environ.get("HASSIO_
 # pylint: disable=invalid-name
 if __name__ == "__main__":
     logger = logging.getLogger()
-    logformat = logging.Formatter(
-        "%(asctime)-15s %(levelname)-5s %(name)s -- %(message)s"
-    )
+    logformat = logging.Formatter("%(asctime)-15s %(levelname)-5s %(name)s -- %(message)s")
     consolehandler = logging.StreamHandler()
     consolehandler.setFormatter(logformat)
     logger.addHandler(consolehandler)
@@ -26,9 +25,7 @@ if __name__ == "__main__":
     if IS_SUPERVISOR:
         default_data_dir = "/config/hass-emulated-hue"
     else:
-        default_data_dir = (
-            os.getenv("APPDATA") if os.name == "nt" else os.path.expanduser("~")
-        )
+        default_data_dir = os.getenv("APPDATA") if os.name == "nt" else os.path.expanduser("~")
         default_data_dir = os.path.join(default_data_dir, ".emulated_hue")
 
     parser = argparse.ArgumentParser(description="Home Assistant HUE Emulation.")
@@ -51,9 +48,7 @@ if __name__ == "__main__":
         help="Long Lived Token for HomeAssistant",
         default=os.getenv("HASS_TOKEN", os.getenv("HASSIO_TOKEN")),
     )
-    parser.add_argument(
-        "--verbose", action="store_true", help="Enable more verbose logging"
-    )
+    parser.add_argument("--verbose", action="store_true", help="Enable more verbose logging")
     parser.add_argument(
         "--http-port",
         type=int,
@@ -79,10 +74,7 @@ if __name__ == "__main__":
     if args.verbose or os.getenv("VERBOSE", "").strip() == "true":
         logger.setLevel(logging.DEBUG)
     use_default_ports = False
-    if (
-        args.use_default_ports_for_discovery
-        or os.getenv("USE_DEFAULT_PORTS", "").strip() == "true"
-    ):
+    if args.use_default_ports_for_discovery or os.getenv("USE_DEFAULT_PORTS", "").strip() == "true":
         use_default_ports = True
     # turn down logging for hass-client
     logging.getLogger("hass_client").setLevel(logging.INFO)

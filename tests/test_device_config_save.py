@@ -3,6 +3,7 @@ A device object only holds a snapshot of its light's config from when it was
 created. Settings changed afterwards (e.g. in the ingress panel) must neither
 be wiped when the device saves its state, nor be ignored when it reads them.
 """
+
 import copy
 from types import SimpleNamespace
 

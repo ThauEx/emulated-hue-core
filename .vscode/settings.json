@@ -2,9 +2,10 @@
   "python.autoComplete.extraPaths": ["./emulated_hue"],
   "python.analysis.extraPaths": ["./emulated_hue"],
   "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
     "editor.codeActionsOnSave": {
-      "source.organizeImports": true,
-      "source.fixAll": true
+      "source.organizeImports": "explicit",
+      "source.fixAll": "explicit"
     }
   },
   "editor.formatOnPaste": false,
@@ -15,8 +16,6 @@
   "files.trimTrailingWhitespace": true,
   "git.autofetch": true,
   "python.analysis.typeCheckingMode": "basic",
-  "python.formatting.blackPath": "/usr/local/bin/black",
-  "python.formatting.provider": "black",
   "python.languageServer": "Pylance",
   "terminal.integrated.defaultProfile.linux": "bash",
   "python.pythonPath": ".venv/bin/python"

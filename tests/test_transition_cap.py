@@ -1,4 +1,5 @@
 """Tests for the per-light transition cap on OnOffDevice controls."""
+
 from types import SimpleNamespace
 
 from emulated_hue.controllers.devices import OnOffDevice

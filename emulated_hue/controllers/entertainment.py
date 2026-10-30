@@ -1,4 +1,5 @@
 """Experimental support for Hue Entertainment API."""
+
 # https://developers.meethue.com/develop/hue-entertainment/philips-hue-entertainment-api/
 import asyncio
 import logging
@@ -119,9 +120,7 @@ class EntertainmentAPI:
         self._interrupted = True
         if self._socket_daemon:
             self._socket_daemon.kill()
-        self.ctl.loop.create_task(
-            self.ctl.controller_hass.set_state(HASS_SENSOR, "off")
-        )
+        self.ctl.loop.create_task(self.ctl.controller_hass.set_state(HASS_SENSOR, "off"))
         LOGGER.info("HUE Entertainment Service stopped.")
 
     async def __process_packet(self, packet: bytes) -> None:

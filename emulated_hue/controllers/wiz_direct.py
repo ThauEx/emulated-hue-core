@@ -26,6 +26,7 @@ sending, and let the separate `brightness` argument be the sole source of
 Callers should treat a False return as "not available right now" and fall
 back to the existing Home Assistant path; nothing here raises.
 """
+
 import asyncio
 import json
 import logging
@@ -77,9 +78,7 @@ async def _async_ensure_reachable(host: str, port: int) -> bool:
     """Probe a WiZ device once per host; cache success, retry on failure."""
     if host in _reachable_hosts:
         return True
-    reachable = await asyncio.get_running_loop().run_in_executor(
-        None, _probe_sync, host, port
-    )
+    reachable = await asyncio.get_running_loop().run_in_executor(None, _probe_sync, host, port)
     if reachable:
         _reachable_hosts.add(host)
         _logged_inactive.discard(host)
@@ -99,9 +98,7 @@ async def _async_get_transport() -> asyncio.DatagramTransport:
     return _transports[None]
 
 
-def _rgb_to_pilot_params(
-    rgb: tuple[float, float, float], brightness: float | None
-) -> dict:
+def _rgb_to_pilot_params(rgb: tuple[float, float, float], brightness: float | None) -> dict:
     peak = max(rgb)
     if peak > 0:
         r, g, b = (round(channel / peak * 255) for channel in rgb)
@@ -111,9 +108,7 @@ def _rgb_to_pilot_params(
     return {"r": r, "g": g, "b": b, "dimming": max(_MIN_DIMMING, round(level * 100))}
 
 
-def _color_temperature_to_pilot_params(
-    color_temperature: float, brightness: float | None
-) -> dict:
+def _color_temperature_to_pilot_params(color_temperature: float, brightness: float | None) -> dict:
     kelvin = round(1_000_000 / color_temperature) if color_temperature else 4000
     kelvin = max(2200, min(kelvin, 6500))  # WiZ RGBW Tunable's supported range
     params = {"temp": kelvin}
@@ -148,16 +143,12 @@ async def async_send_light_state(
         if rgb is not None:
             params.update(_rgb_to_pilot_params(rgb, brightness))
         elif color_temperature is not None:
-            params.update(
-                _color_temperature_to_pilot_params(color_temperature, brightness)
-            )
+            params.update(_color_temperature_to_pilot_params(color_temperature, brightness))
         elif brightness is not None:
             params["dimming"] = max(_MIN_DIMMING, round(brightness * 100))
 
     transport = await _async_get_transport()
-    transport.sendto(
-        json.dumps({"method": "setPilot", "params": params}).encode(), (host, port)
-    )
+    transport.sendto(json.dumps({"method": "setPilot", "params": params}).encode(), (host, port))
     return True
 
 

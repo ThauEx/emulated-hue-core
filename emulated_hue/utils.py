@@ -1,4 +1,5 @@
 """Emulated HUE Bridge for HomeAssistant - Helper utils."""
+
 import asyncio
 import inspect
 import json
@@ -132,9 +133,7 @@ def send_error_response(address: str, description: str, type_num: int) -> web.Re
             address = address.lstrip("/").split("/")
             address = f"/{address[2]}" if len(address) > 2 else "/"
     description = description.format(path=address)
-    response = [
-        {"error": {"type": type_num, "address": address, "description": description}}
-    ]
+    response = [{"error": {"type": type_num, "address": address, "description": description}}]
     return send_json_response(response)
 
 
@@ -236,9 +235,7 @@ class ClassRouteTableDef(web.RouteTableDef):
         """Collect routes from class methods."""
 
         def predicate(member) -> bool:
-            return all(
-                (inspect.iscoroutinefunction(member), hasattr(member, "route_info"))
-            )
+            return all((inspect.iscoroutinefunction(member), hasattr(member, "route_info")))
 
         for _, handler in inspect.getmembers(instance, predicate):
             method, path, kwargs = handler.route_info

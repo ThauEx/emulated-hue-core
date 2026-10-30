@@ -1,4 +1,5 @@
 """Tests for emulated_hue.controllers.esphome_direct's pure helper functions."""
+
 from emulated_hue.controllers.esphome_direct import (
     ColorMode,
     _cold_warm_fractions,
@@ -60,9 +61,7 @@ def test_pick_color_mode_combined_rgbww_device_zeroes_whites():
 
 def test_pick_color_mode_color_temp_on_combined_device_computes_blend():
     supported = frozenset({ColorMode.RGB_COLD_WARM_WHITE})
-    mode, extra = _pick_color_mode_and_extra(
-        supported, None, 260, min_mireds=150, max_mireds=370
-    )
+    mode, extra = _pick_color_mode_and_extra(supported, None, 260, min_mireds=150, max_mireds=370)
     assert mode == ColorMode.RGB_COLD_WARM_WHITE
     assert extra["rgb"] == (0.0, 0.0, 0.0)
     assert extra["color_temperature"] is None

@@ -2,6 +2,7 @@
 aiohttp app with fake storage/entertainment - no real Home Assistant or
 ESPHome device needed.
 """
+
 import pytest
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
@@ -110,9 +111,7 @@ async def test_entertainment_configuration_full_lifecycle(client):
     light_ent_rid = _v2_id("entertainment-light", "1")
 
     # starts out empty
-    resp = await test_client.get(
-        "/clip/v2/resource/entertainment_configuration", headers=HEADERS
-    )
+    resp = await test_client.get("/clip/v2/resource/entertainment_configuration", headers=HEADERS)
     assert (await resp.json())["data"] == []
 
     # create, referencing the light's entertainment resource

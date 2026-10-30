@@ -5,6 +5,7 @@ ESPHome keeps only the ratio between the rgb channels and discards their
 overall level, so the Ambilight/Hue brightness has to travel in the separate
 brightness field - otherwise every colour would show at full brightness.
 """
+
 from types import SimpleNamespace
 
 from emulated_hue import const

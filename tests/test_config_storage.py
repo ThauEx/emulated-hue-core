@@ -8,6 +8,7 @@ change-detection compare the object to itself (always equal), silently
 skipping the save. Real callers doing exactly this: ingress.py's per-light
 save, and devices.py's own state persistence.
 """
+
 import pytest
 
 from emulated_hue.controllers.config import Config

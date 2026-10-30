@@ -21,6 +21,7 @@ the classic per-light path share them.
 Callers should treat a False return as "not available right now" and fall
 back to the existing Home Assistant path; nothing here raises.
 """
+
 import asyncio
 import base64
 import binascii
@@ -76,7 +77,7 @@ def _split_credential(credential: str) -> tuple[str | None, str | None]:
     try:
         if len(base64.b64decode(credential, validate=True)) == 32:
             return None, credential
-    except (binascii.Error, ValueError):
+    except binascii.Error, ValueError:
         pass
     return credential, None
 
@@ -286,9 +287,7 @@ async def async_close_all() -> None:
         try:
             await client.disconnect()
         except Exception:  # noqa: BLE001 - best-effort cleanup on shutdown
-            LOGGER.debug(
-                "Error disconnecting from ESPHome device %s", host, exc_info=True
-            )
+            LOGGER.debug("Error disconnecting from ESPHome device %s", host, exc_info=True)
     _clients.clear()
     _light_keys.clear()
     _light_caps.clear()

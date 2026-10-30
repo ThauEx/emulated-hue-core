@@ -7,6 +7,7 @@ Lets a user assign esphome_host/wiz_host per light and trigger pairing mode,
 writing straight into the same emulated_hue.json storage the rest of the app
 already reads/writes - no add-on restart needed, unlike the Configuration tab.
 """
+
 import json
 import logging
 
@@ -116,9 +117,7 @@ class HueIngressEndpoints:
         # front, exactly as that client listing would.
         for entity_id in self.ctl.controller_hass.get_entities():
             await self.ctl.config_instance.async_entity_id_to_light_id(entity_id)
-        lights = await self.ctl.config_instance.async_get_storage_value(
-            "lights", default={}
-        )
+        lights = await self.ctl.config_instance.async_get_storage_value("lights", default={})
         result = []
         for light_id, conf in lights.items():
             if not conf.get("enabled", True):
@@ -179,10 +178,8 @@ class HueIngressEndpoints:
 
         try:
             _store_color_balance(light_conf, data.get("color_balance"))
-        except (TypeError, ValueError):
-            return send_error_response(
-                request.path, "color_balance values must be numbers", 7
-            )
+        except TypeError, ValueError:
+            return send_error_response(request.path, "color_balance values must be numbers", 7)
 
         for field in DIRECT_PATH_FIELDS:
             if field != "esphome_password":
@@ -194,13 +191,9 @@ class HueIngressEndpoints:
         throttle = data.get("throttle")
         try:
             port = int(port) if port else None
-            max_transition = (
-                int(max_transition) if max_transition not in (None, "") else None
-            )
-            throttle = (
-                int(throttle) if throttle not in (None, "") else DEFAULT_THROTTLE_MS
-            )
-        except (TypeError, ValueError):
+            max_transition = int(max_transition) if max_transition not in (None, "") else None
+            throttle = int(throttle) if throttle not in (None, "") else DEFAULT_THROTTLE_MS
+        except TypeError, ValueError:
             return send_error_response(
                 request.path, "port/throttle/max_transition_ms must be numbers", 5
             )
@@ -212,9 +205,7 @@ class HueIngressEndpoints:
 
         _store_direct_target(light_conf, direct_type, host, port, data)
 
-        await self.ctl.config_instance.async_set_storage_value(
-            "lights", light_id, light_conf
-        )
+        await self.ctl.config_instance.async_set_storage_value("lights", light_id, light_conf)
         return send_json_response({"success": True})
 
     @routes.post("/api/lights/{light_id}/test")

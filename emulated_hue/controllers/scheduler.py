@@ -1,4 +1,5 @@
 """Scheduler for emulated_hue."""
+
 import asyncio
 import inspect
 from collections.abc import Awaitable, Callable
@@ -27,9 +28,7 @@ def _scheduler_factory(func: Callable[[], None], interval_ms: int) -> Awaitable[
     return scheduler_func()
 
 
-def _is_async_function(
-    func: Callable[[Any], None] | Callable[[Any], Awaitable[None]]
-) -> bool:
+def _is_async_function(func: Callable[[Any], None] | Callable[[Any], Awaitable[None]]) -> bool:
     is_async_gen = inspect.isasyncgenfunction(func)
     is_coro_fn = asyncio.iscoroutinefunction(func)
     return is_async_gen or is_coro_fn

@@ -7,6 +7,7 @@ doesn't match any particular LED strip's real output. Doing the conversion
 here instead lets us use a gamut tuned to the actual light - the same thing
 a real Hue light does internally with its own factory-calibrated gamut.
 """
+
 import colorsys
 
 # Default XYZ->RGB matrix, the one most open source Hue client
@@ -40,9 +41,7 @@ def gamut_for(light_conf: dict) -> tuple | None:
     A hand-set esphome_gamut matrix in the light config wins over the named
     color_profile, so existing calibrated setups keep working unchanged.
     """
-    return light_conf.get("esphome_gamut") or COLOR_PROFILES.get(
-        light_conf.get("color_profile")
-    )
+    return light_conf.get("esphome_gamut") or COLOR_PROFILES.get(light_conf.get("color_profile"))
 
 
 # ESPHome throws away the overall level of the rgb it is sent (it only keeps
@@ -101,9 +100,7 @@ def xy_brightness_to_rgb(
     capital_x = (capital_y / y) * x
     capital_z = (capital_y / y) * (1.0 - x - y)
 
-    rgb = [
-        row[0] * capital_x + row[1] * capital_y + row[2] * capital_z for row in matrix
-    ]
+    rgb = [row[0] * capital_x + row[1] * capital_y + row[2] * capital_z for row in matrix]
     rgb = [_gamma_correct(c) for c in rgb]
 
     highest = max([*rgb, 1.0])
@@ -115,6 +112,4 @@ def xy_brightness_to_rgb(
 
 def hs_to_rgb(hue_deg: float, sat_pct: float) -> tuple[float, float, float]:
     """Convert HA's hs_color (hue 0-360 degrees, saturation 0-100 percent) to 0-1 RGB."""
-    return colorsys.hsv_to_rgb(
-        (hue_deg % 360) / 360.0, max(0.0, min(sat_pct, 100.0)) / 100.0, 1.0
-    )
+    return colorsys.hsv_to_rgb((hue_deg % 360) / 360.0, max(0.0, min(sat_pct, 100.0)) / 100.0, 1.0)

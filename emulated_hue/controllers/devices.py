@@ -1,4 +1,5 @@
 """Collection of devices controllable by Hue."""
+
 import asyncio
 import logging
 from collections.abc import Callable
@@ -22,7 +23,7 @@ from .models import ALL_STATES, Controller, EntityState
 
 LOGGER = logging.getLogger(__name__)
 
-__device_cache: dict[str, tuple["OnOffDevice", Callable]] = {}
+__device_cache: dict[str, tuple[OnOffDevice, Callable]] = {}
 
 TYPE_ON_OFF = "on_off"
 TYPE_BRIGHTNESS = "brightness"
@@ -46,7 +47,7 @@ class DeviceProperties:
     unique_id: str | None
 
     @classmethod
-    def from_hass(cls, ctl: Controller, entity_id: str) -> "DeviceProperties":
+    def from_hass(cls, ctl: Controller, entity_id: str) -> DeviceProperties:
         """Get device properties from Home Assistant."""
         device_id: str = ctl.controller_hass.get_device_id_from_entity_id(entity_id)
         device_attributes: dict = {}
@@ -97,9 +98,7 @@ class OnOffDevice:
         self._light_id: str = light_id
         self._entity_id: str = entity_id
 
-        self._device = DeviceProperties.from_hass(
-            self.ctl, entity_id
-        )  # Device attributes
+        self._device = DeviceProperties.from_hass(self.ctl, entity_id)  # Device attributes
 
         self._hass_state_dict: dict = hass_state_dict  # state from Home Assistant
 
@@ -117,9 +116,7 @@ class OnOffDevice:
 
         self._hass_state: None | EntityState = None  # EntityState from Home Assistant
         # Latest state and stored in config
-        self._config_state: EntityState = EntityState.from_config(
-            self._config.get("state")
-        )
+        self._config_state: EntityState = EntityState.from_config(self._config.get("state"))
         self._last_state_update: float = datetime.now().timestamp()
 
     def __repr__(self):
@@ -143,9 +140,7 @@ class OnOffDevice:
             """Return control state."""
             return self._control_state
 
-        def set_transition_ms(
-            self, transition_ms: float, respect_throttle: bool = False
-        ) -> None:
+        def set_transition_ms(self, transition_ms: float, respect_throttle: bool = False) -> None:
             """Set transition in milliseconds."""
             if respect_throttle and transition_ms < self._throttle_ms:
                 transition_ms = self._throttle_ms
@@ -190,17 +185,13 @@ class OnOffDevice:
         """
         conf = self._light_conf() or dict(self._config)
         conf["state"] = self._config.get("state", conf.get("state"))
-        await self.ctl.config_instance.async_set_storage_value(
-            "lights", self._light_id, conf
-        )
+        await self.ctl.config_instance.async_set_storage_value("lights", self._light_id, conf)
 
     def _save_config(self) -> None:
         """Save config to file."""
         asyncio.create_task(self._async_save_config())
 
-    async def _async_update_config_states(
-        self, control_state: EntityState | None = None
-    ) -> None:
+    async def _async_update_config_states(self, control_state: EntityState | None = None) -> None:
         """Update config states."""
         for state in ALL_STATES:
             # prioritize our last command if exists, then hass then last saved state
@@ -215,14 +206,10 @@ class OnOffDevice:
         self._config["state"] = dict(self._config_state)
         await self._async_save_config()
 
-    def _update_device_state(
-        self, existing_state: EntityState | None = None
-    ) -> EntityState:
+    def _update_device_state(self, existing_state: EntityState | None = None) -> EntityState:
         """Update EntityState object with hass state."""
         if existing_state:
-            existing_state.power_state = (
-                self._hass_state_dict["state"] == const.HASS_STATE_ON
-            )
+            existing_state.power_state = self._hass_state_dict["state"] == const.HASS_STATE_ON
             existing_state.reachable = (
                 self._hass_state_dict["state"] != const.HASS_STATE_UNAVAILABLE
             )
@@ -278,9 +265,7 @@ class OnOffDevice:
     @property
     def name(self) -> str:
         """Return device name, prioritizing local config."""
-        return self._name or self._hass_state_dict.get(const.HASS_ATTR, {}).get(
-            "friendly_name"
-        )
+        return self._name or self._hass_state_dict.get(const.HASS_ATTR, {}).get("friendly_name")
 
     @name.setter
     def name(self, value: str) -> None:
@@ -321,16 +306,13 @@ class OnOffDevice:
         # prevent entertainment mode updates to avoid lag
         now_timestamp = datetime.now().timestamp()
         if self.ctl.config_instance.entertainment_active and (
-            now_timestamp - self._last_state_update
-            < ENTERTAINMENT_UPDATE_STATE_UPDATE_RATE / 1000
+            now_timestamp - self._last_state_update < ENTERTAINMENT_UPDATE_STATE_UPDATE_RATE / 1000
         ):
             return
 
         if self._enabled or not self._config_state:
             self._last_state_update = now_timestamp
-            self._hass_state_dict = self.ctl.controller_hass.get_entity_state(
-                self._entity_id
-            )
+            self._hass_state_dict = self.ctl.controller_hass.get_entity_state(self._entity_id)
             # Cascades up the inheritance chain to update the state
             self._hass_state = self._update_device_state()
             await self._async_update_config_states()
@@ -364,13 +346,9 @@ class OnOffDevice:
         rgb = color_temp = None
         xy_brightness = None
         if control_state.power_state:
-            if control_state.color_mode == const.HASS_COLOR_MODE_RGB and (
-                control_state.rgb_color
-            ):
+            if control_state.color_mode == const.HASS_COLOR_MODE_RGB and (control_state.rgb_color):
                 rgb = tuple(c / 255 for c in control_state.rgb_color)
-            elif control_state.color_mode == const.HASS_COLOR_MODE_XY and (
-                control_state.xy_color
-            ):
+            elif control_state.color_mode == const.HASS_COLOR_MODE_XY and (control_state.xy_color):
                 # A Hue request without "bri" means "keep the current level",
                 # and bri 0 (kept as 1 by set_brightness) is the dimmest level -
                 # so bake in the brightness the light actually has.
@@ -394,9 +372,7 @@ class OnOffDevice:
         rgb_level = lamp_brightness(rgb) if xy_brightness is not None else None
         rgb = apply_balance(rgb, conf)
 
-        brightness = (
-            (control_state.brightness / 255) if control_state.brightness else None
-        )
+        brightness = (control_state.brightness / 255) if control_state.brightness else None
         if xy_brightness is not None:
             brightness = xy_brightness
 
@@ -419,17 +395,17 @@ class OnOffDevice:
         ):
             return True
 
-        if wiz_host and await wiz_direct.async_send_light_state(
-            host=wiz_host,
-            port=conf.get("wiz_port") or wiz_direct.DEFAULT_PORT,
-            power=control_state.power_state,
-            rgb=rgb,
-            color_temperature=color_temp,
-            brightness=brightness,
-        ):
-            return True
-
-        return False
+        return bool(
+            wiz_host
+            and await wiz_direct.async_send_light_state(
+                host=wiz_host,
+                port=conf.get("wiz_port") or wiz_direct.DEFAULT_PORT,
+                power=control_state.power_state,
+                rgb=rgb,
+                color_temperature=color_temp,
+                brightness=brightness,
+            )
+        )
 
 
 class BrightnessDevice(OnOffDevice):
@@ -460,21 +436,15 @@ class BrightnessDevice(OnOffDevice):
         if allowed:
             return True
 
-        if (
+        return bool(
             control_state.brightness
             and self._config_state.brightness
-            and (
-                abs(self._config_state.brightness - control_state.brightness)
-                > const.BRIGHTNESS_THROTTLE_THRESHOLD
-            )
-        ):
-            return True
-        return False
+            and abs(self._config_state.brightness - control_state.brightness)
+            > const.BRIGHTNESS_THROTTLE_THRESHOLD
+        )
 
     # Override
-    def _update_device_state(
-        self, existing_state: EntityState | None = None
-    ) -> EntityState:
+    def _update_device_state(self, existing_state: EntityState | None = None) -> EntityState:
         """Update EntityState object."""
         existing_state = super()._update_device_state(existing_state)
         existing_state.brightness = self._hass_state_dict.get(const.HASS_ATTR, {}).get(
@@ -519,9 +489,7 @@ class CTDevice(BrightnessDevice):
         return self.CTControl(self)
 
     # Override
-    def _update_device_state(
-        self, existing_state: EntityState | None = None
-    ) -> EntityState:
+    def _update_device_state(self, existing_state: EntityState | None = None) -> EntityState:
         """Update EntityState object."""
         existing_state = super()._update_device_state(existing_state)
         existing_state.color_temp = self._hass_state_dict.get(const.HASS_ATTR, {}).get(
@@ -590,14 +558,12 @@ class RGBDevice(BrightnessDevice):
         return self.RGBControl(self)
 
     # Override
-    def _update_device_state(
-        self, existing_state: EntityState | None = None
-    ) -> EntityState:
+    def _update_device_state(self, existing_state: EntityState | None = None) -> EntityState:
         """Update EntityState object."""
         existing_state = super()._update_device_state(existing_state)
-        existing_state.hue_saturation = self._hass_state_dict.get(
-            const.HASS_ATTR, {}
-        ).get(const.HASS_ATTR_HS_COLOR)
+        existing_state.hue_saturation = self._hass_state_dict.get(const.HASS_ATTR, {}).get(
+            const.HASS_ATTR_HS_COLOR
+        )
         existing_state.xy_color = self._hass_state_dict.get(const.HASS_ATTR, {}).get(
             const.HASS_ATTR_XY_COLOR
         )
@@ -654,9 +620,7 @@ class RGBWWDevice(CTDevice, RGBDevice):
         return self.RGBWControl(self)
 
     # Override
-    def _update_device_state(
-        self, existing_state: EntityState | None = None
-    ) -> EntityState:
+    def _update_device_state(self, existing_state: EntityState | None = None) -> EntityState:
         """Update EntityState object."""
         existing_state = CTDevice._update_device_state(self, existing_state)
         return RGBDevice._update_device_state(self, existing_state)
@@ -738,8 +702,6 @@ async def async_get_device(
         await device_obj.async_update_state()
 
     # Callbacks are registered here but never removed
-    remove_callback = ctl.controller_hass.register_state_changed_callback(
-        callback, entity_id
-    )
+    remove_callback = ctl.controller_hass.register_state_changed_callback(callback, entity_id)
     __device_cache[entity_id] = device_obj, remove_callback
     return device_obj

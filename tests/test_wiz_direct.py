@@ -1,4 +1,5 @@
 """Tests for emulated_hue.controllers.wiz_direct's pure helper functions."""
+
 from emulated_hue.controllers.wiz_direct import (
     _color_temperature_to_pilot_params,
     _rgb_to_pilot_params,

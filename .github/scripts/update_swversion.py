@@ -1,4 +1,5 @@
 """Write the latest Hue Bridge software version into emulated_hue/definitions.json."""
+
 import json
 import os
 import re
@@ -35,9 +36,7 @@ def main() -> None:
     current = json.loads(definitions)["bridge"]["basic"]["swversion"]
     print(f"Current version: {current}, latest version: {latest}")
     if latest != current:
-        updated = definitions.replace(
-            f'"swversion": "{current}"', f'"swversion": "{latest}"', 1
-        )
+        updated = definitions.replace(f'"swversion": "{current}"', f'"swversion": "{latest}"', 1)
         DEFINITIONS_FILE.write_text(updated, encoding="utf-8")
     if output_file := os.getenv("GITHUB_OUTPUT"):
         with open(output_file, "a", encoding="utf-8") as output:

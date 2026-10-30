@@ -1,4 +1,5 @@
 """Support for a Hue API to control Home Assistant."""
+
 import logging
 import os
 import ssl
@@ -50,14 +51,10 @@ class HueWeb:
         await self.runner.setup()
 
         # Create and start the HTTP webserver/api
-        self.http_site = web.TCPSite(
-            self.runner, port=self.ctl.config_instance.http_port
-        )
+        self.http_site = web.TCPSite(self.runner, port=self.ctl.config_instance.http_port)
         try:
             await self.http_site.start()
-            LOGGER.info(
-                "Started HTTP webserver on port %s", self.ctl.config_instance.http_port
-            )
+            LOGGER.info("Started HTTP webserver on port %s", self.ctl.config_instance.http_port)
         except OSError as error:
             LOGGER.error(
                 "Failed to create HTTP server at port %d: %s",
@@ -69,9 +66,7 @@ class HueWeb:
         cert_file = self.ctl.config_instance.get_path("cert.pem")
         key_file = self.ctl.config_instance.get_path("cert_key.pem")
         if not check_certificate(cert_file, self.ctl.config_instance):
-            await async_generate_selfsigned_cert(
-                cert_file, key_file, self.ctl.config_instance
-            )
+            await async_generate_selfsigned_cert(cert_file, key_file, self.ctl.config_instance)
         ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
         ssl_context.load_cert_chain(cert_file, key_file)
 

@@ -1,4 +1,5 @@
 """Emulated HUE Bridge for HomeAssistant - Certificate utils."""
+
 import asyncio
 import logging
 import os
@@ -31,14 +32,10 @@ def check_certificate(cert_file: str, config: Config):
         return False
 
 
-async def async_generate_selfsigned_cert(
-    cert_file: str, key_file: str, config: Config
-) -> None:
+async def async_generate_selfsigned_cert(cert_file: str, key_file: str, config: Config) -> None:
     """Generate self signed certificate compatible with Philips HUE."""
     loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(
-        None, generate_selfsigned_cert, cert_file, key_file, config
-    )
+    return await loop.run_in_executor(None, generate_selfsigned_cert, cert_file, key_file, config)
 
 
 def generate_selfsigned_cert(cert_file: str, key_file: str, config: Config) -> None:

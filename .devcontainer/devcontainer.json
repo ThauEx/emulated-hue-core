@@ -18,8 +18,9 @@
       ],
       "settings": {
         "[python]": {
+          "editor.defaultFormatter": "charliermarsh.ruff",
           "editor.codeActionsOnSave": {
-            "source.fixAll": true
+            "source.fixAll": "explicit"
           }
         },
         "editor.formatOnPaste": false,
@@ -30,8 +31,6 @@
         "files.trimTrailingWhitespace": true,
         "git.autofetch": true,
         "python.analysis.typeCheckingMode": "basic",
-        "python.formatting.blackPath": "/usr/local/bin/black",
-        "python.formatting.provider": "black",
         "python.languageServer": "Pylance",
         "python.pythonPath": "/usr/local/bin/python",
         "terminal.integrated.defaultProfile.linux": "bash",
