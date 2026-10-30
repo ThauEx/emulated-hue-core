@@ -1,9 +1,10 @@
 #!/command/with-contenv bashio
+# shellcheck shell=bash
 # ==============================================================================
 # Emulated Hue
 # Runs Emulated Hue
 # ==============================================================================
 
 bashio::log.info "Starting Emulated Hue..."
-cd /app
+cd /app || bashio::exit.nok "Could not change to /app"
 exec python3 -m emulated_hue

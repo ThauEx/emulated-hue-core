@@ -1,7 +1,0 @@
-#!/command/with-contenv bash
-# ==============================================================================
-# Emulated Hue
-# Take down the S6 supervision tree when Emulated Hue fails to start/crashes
-# ==============================================================================
-
-/run/s6/basedir/bin/halt

@@ -1,0 +1,32 @@
+#!/command/with-contenv bashio
+# shellcheck shell=bash
+# ==============================================================================
+# Emulated Hue
+# Turns the add-on options into the environment variables the app reads, before
+# the server starts. This overrides native environment variables.
+# ==============================================================================
+readonly env_dir="/run/s6/container_environment"
+
+# Usage: export_option <option name> <environment variable>
+export_option() {
+    if bashio::config.has_value "${1}"; then
+        bashio::config "${1}" > "${env_dir}/${2}"
+    fi
+}
+
+if bashio::fs.file_exists '/data/options.json'; then
+    export_option 'data' DATA_DIR
+    export_option 'http_port' HTTP_PORT
+    export_option 'https_port' HTTPS_PORT
+    export_option 'token' HASS_TOKEN
+    export_option 'url' HASS_URL
+    export_option 'use_default_ports_for_discovery' USE_DEFAULT_PORTS
+    export_option 'verbose' VERBOSE
+fi
+
+# The ingress panel's sidebar path contains the add-on's own slug, which is not
+# the same for every install (dev add-on, repository-hash prefix).
+slug=$(bashio::api.supervisor GET "/addons/self/info" false ".slug" || true)
+if bashio::var.has_value "${slug}"; then
+    echo "/hassio/ingress/${slug}" > "${env_dir}/HUE_INGRESS_PANEL_PATH"
+fi
