@@ -119,7 +119,8 @@ class DockerNames:
             run_number = args.run_number if args.run_number else ""
             github_sha = args.github_sha if args.github_sha else ""
         run_number = f"-{run_number}"
-        github_sha = f"-{github_sha}"
+        # Short SHA, so the add-on version (which is this tag) stays readable.
+        github_sha = f"-{(github_sha or '')[:7]}"
 
         if not args.image:
             preformatted_names = []
