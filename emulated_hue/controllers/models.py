@@ -3,7 +3,7 @@ import asyncio
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from emulated_hue import const
 
@@ -51,10 +51,7 @@ class EntityState(BaseModel):
         )
         return power_state_equal and brightness_equal and color_attribute
 
-    class Config:
-        """Pydantic config."""
-
-        validate_assignment = True
+    model_config = ConfigDict(validate_assignment=True)
 
     def _get_color_mode_attribute(self) -> tuple[str, Any] | None:
         """Return color mode and attribute associated."""
