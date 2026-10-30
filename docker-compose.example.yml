@@ -1,4 +1,3 @@
-version: '3'
 services:
   hass-emulated-hue:
     network_mode: host
@@ -6,8 +5,9 @@ services:
     environment:
       - HASS_TOKEN=xxxxxx
       - HASS_URL=http://192.168.1.1:8123
+      - DATA_DIR=/config/.emulated-hue
 #      - VERBOSE=true
-    image: ghcr.io/hass-emulated-hue/core:0.2.9 # <<< Desired release version here
+    image: ghcr.io/thauex/emulated-hue-core:latest # <<< or pin a master-<sha> tag
     volumes:
       - ./your-directory-here:/config/.emulated-hue
 # If host networking mode is undesired,
