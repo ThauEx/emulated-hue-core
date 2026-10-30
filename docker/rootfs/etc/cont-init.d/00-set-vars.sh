@@ -37,3 +37,10 @@ if bashio::fs.file_exists '/data/options.json'; then
   fi
 
 fi
+
+# The ingress panel's sidebar path contains the add-on's own slug, which is not
+# the same for every install (dev add-on, repository-hash prefix).
+slug=$(bashio::api.supervisor GET "/addons/self/info" false ".slug" || true)
+if bashio::var.has_value "${slug}"; then
+  echo "/hassio/ingress/${slug}" > /run/s6/container_environment/HUE_INGRESS_PANEL_PATH
+fi

@@ -538,7 +538,11 @@ class HueApiV1Endpoints:
         # Send the user straight to the ingress panel instead of a one-off
         # confirmation page - it already polls pairing status on load, so
         # the live countdown there doubles as the "pairing enabled" notice.
-        raise web.HTTPFound(location=const.HUE_INGRESS_PANEL_PATH)
+        # The add-on start script sets the real panel path from its own slug,
+        # which differs for a dev add-on or a repository-hash prefixed slug.
+        raise web.HTTPFound(
+            location=os.getenv("HUE_INGRESS_PANEL_PATH", const.HUE_INGRESS_PANEL_PATH)
+        )
 
     @routes.get("/api/{username}/capabilities")
     @check_request()
