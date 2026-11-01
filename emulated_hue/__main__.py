@@ -40,7 +40,7 @@ if __name__ == "__main__":
         "--url",
         type=str,
         help="url to HomeAssistant",
-        default=os.getenv("HASS_URL", "http://hassio/homeassistant"),
+        default=os.getenv("HASS_URL", "http://supervisor/core"),
     )
     parser.add_argument(
         "--token",
