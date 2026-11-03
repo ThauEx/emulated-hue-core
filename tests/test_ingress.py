@@ -125,7 +125,12 @@ async def test_test_color_is_sent_with_balance_to_the_saved_esphome_light(client
     assert (await response.json())["success"]
     assert sent["host"] == "10.0.0.5"
     assert sent["rgb"] == pytest.approx((1.0, 200 / 255 * 0.5, 0.0))
+    assert sent["brightness"] == pytest.approx(1.0)
     assert sent["power"] is True
+
+    # a dark colour is shown dark: ESPHome takes the level from the brightness field
+    await test_client.post(f"/api/lights/{light_id}/test", json={"rgb": [13, 13, 13]})
+    assert sent["brightness"] == pytest.approx(13 / 255)
 
     await test_client.post(f"/api/lights/{light_id}/test", json={})
     assert sent["power"] is False

@@ -15,7 +15,7 @@ from aiohttp import web
 
 from emulated_hue.const import DEFAULT_THROTTLE_MS
 from emulated_hue.controllers import Controller, esphome_direct, wiz_direct
-from emulated_hue.controllers.color_utils import COLOR_PROFILES, apply_balance
+from emulated_hue.controllers.color_utils import COLOR_PROFILES, apply_balance, lamp_brightness
 from emulated_hue.utils import (
     ClassRouteTableDef,
     send_error_response,
@@ -217,8 +217,11 @@ class HueIngressEndpoints:
                 request.match_info["light_id"]
             )
             rgb = data.get("rgb")
+            level = 1.0
             if rgb is not None:
                 rgb = tuple(min(255, max(0, int(c))) / 255 for c in rgb)
+                # like a live frame: ESPHome discards the level of rgb, it goes into brightness
+                level = lamp_brightness(rgb)
                 rgb = apply_balance(
                     rgb, {"color_balance": _parse_balance(data.get("color_balance"))}
                 )
@@ -233,7 +236,7 @@ class HueIngressEndpoints:
                 object_id=light_conf.get("esphome_object_id"),
                 power=rgb is not None,
                 rgb=rgb,
-                brightness=1.0,
+                brightness=level,
             )
         elif light_conf.get("wiz_host"):
             sent = await wiz_direct.async_send_light_state(
@@ -570,7 +573,8 @@ async function saveLight(card) {
   dot.classList.toggle('active', !!payload.type);
 }
 
-const CALIB_COLORS = ['#ff6a00', '#ffc400', '#ffa000', '#ffd9a0', '#ff0000', '#00c800', '#0000ff', '#6a00ff', '#8a2be2', '#d000d0', '#00d0d0'];
+const CALIB_COLORS = ['#ff6a00', '#ffc400', '#ffa000', '#ffd9a0', '#ff0000', '#00c800', '#0000ff', '#6a00ff', '#8a2be2', '#d000d0', '#00d0d0',
+  '#0d0d0d', '#2b2b2b', '#0b1433', '#331400'];
 const calib = {card: null, rgb: null, timer: null};
 
 const hexToRgb = (hex) => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
