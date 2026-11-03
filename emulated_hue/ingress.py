@@ -8,8 +8,10 @@ writing straight into the same emulated_hue.json storage the rest of the app
 already reads/writes - no add-on restart needed, unlike the Configuration tab.
 """
 
+import ipaddress
 import json
 import logging
+from collections.abc import Awaitable, Callable
 
 from aiohttp import web
 
@@ -27,6 +29,44 @@ LOGGER = logging.getLogger(__name__)
 # pylint: disable=invalid-name
 routes = ClassRouteTableDef()
 # pylint: enable=invalid-name
+
+Network = ipaddress.IPv4Network | ipaddress.IPv6Network
+
+
+def parse_allowed_networks(value: str) -> list[Network]:
+    """Parse a comma separated list of networks, e.g. "172.30.32.2/32,127.0.0.0/8"."""
+    return [
+        ipaddress.ip_network(part.strip(), strict=False)
+        for part in value.split(",")
+        if part.strip()
+    ]
+
+
+def is_allowed_peer(remote: str | None, networks: list[Network]) -> bool:
+    """Return whether the address of the connecting peer is inside one of the networks."""
+    try:
+        address = ipaddress.ip_address(remote)
+    except ValueError:
+        return False
+    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped:
+        address = address.ipv4_mapped
+    return any(address in network for network in networks)
+
+
+def ingress_access_middleware(networks: list[Network]) -> Callable:
+    """Only let peers from the given networks use the ingress panel."""
+
+    @web.middleware
+    async def middleware(
+        request: web.Request, handler: Callable[[web.Request], Awaitable[web.StreamResponse]]
+    ) -> web.StreamResponse:
+        if not is_allowed_peer(request.remote, networks):
+            LOGGER.warning("Rejected ingress panel request from %s", request.remote)
+            return web.Response(status=403, text="Forbidden")
+        return await handler(request)
+
+    return middleware
+
 
 DIRECT_PATH_FIELDS = (
     "esphome_host",

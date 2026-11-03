@@ -9,9 +9,13 @@ from aiohttp import web
 
 from emulated_hue.apiv1 import HueApiV1Endpoints
 from emulated_hue.apiv2 import HueApiV2Endpoints
-from emulated_hue.const import HUE_INGRESS_PORT
+from emulated_hue.const import HUE_INGRESS_ALLOWED_NETWORKS, HUE_INGRESS_PORT
 from emulated_hue.controllers import Controller
-from emulated_hue.ingress import HueIngressEndpoints
+from emulated_hue.ingress import (
+    HueIngressEndpoints,
+    ingress_access_middleware,
+    parse_allowed_networks,
+)
 from emulated_hue.ssl_cert import async_generate_selfsigned_cert, check_certificate
 
 if TYPE_CHECKING:
@@ -92,14 +96,19 @@ class HueWeb:
         # Separate app/site for the ingress panel - kept off the main Hue
         # API app since it's plain HTTP only reachable through Supervisor's
         # ingress proxy, not part of the Hue protocol surface.
-        ingress_app = web.Application()
+        allowed = os.getenv("HUE_INGRESS_ALLOWED_NETWORKS", HUE_INGRESS_ALLOWED_NETWORKS)
+        ingress_app = web.Application(
+            middlewares=[ingress_access_middleware(parse_allowed_networks(allowed))]
+        )
         ingress_app.add_routes(self.ingress_api.route)
         ingress_runner = web.AppRunner(ingress_app, access_log=None)
         await ingress_runner.setup()
         self.ingress_site = web.TCPSite(ingress_runner, port=HUE_INGRESS_PORT)
         try:
             await self.ingress_site.start()
-            LOGGER.info("Started ingress webserver on port %s", HUE_INGRESS_PORT)
+            LOGGER.info(
+                "Started ingress webserver on port %s, open to: %s", HUE_INGRESS_PORT, allowed
+            )
         except OSError as error:
             LOGGER.error(
                 "Failed to create ingress server at port %d: %s",
