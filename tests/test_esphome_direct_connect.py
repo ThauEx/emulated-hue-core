@@ -73,3 +73,18 @@ async def test_retries_again_once_backoff_has_elapsed():
     FakeClient.fail = False
     esphome_direct._retry_after["lamp.local"] = 0.0
     assert await esphome_direct._async_get_ready_client("lamp.local", 6053, "", None) is not None
+
+
+async def test_frames_do_not_queue_up_behind_a_connect_in_progress():
+    ready = esphome_direct._async_get_ready_client
+    first = asyncio.create_task(ready("lamp.local", 6053, "", None))
+    await asyncio.sleep(0.01)  # the first caller now holds the connect lock
+
+    # a streaming caller skips the frame instead of waiting for the connection ...
+    assert await ready("lamp.local", 6053, "", None, wait_for_connection=False) is None
+    # ... while a one-off command is happy to wait for it
+    waiting = asyncio.create_task(ready("lamp.local", 6053, "", None))
+
+    assert await first is not None
+    assert await waiting is not None
+    assert sum(client.connects for client in FakeClient.instances) == 1

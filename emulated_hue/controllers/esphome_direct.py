@@ -149,7 +149,11 @@ def _ready(host: str) -> tuple[APIClient, int] | None:
 
 
 async def _async_get_ready_client(
-    host: str, port: int, credential: str, object_id: str | None
+    host: str,
+    port: int,
+    credential: str,
+    object_id: str | None,
+    wait_for_connection: bool = True,
 ) -> tuple[APIClient, int] | None:
     """
     Return a connected client plus the resolved light entity key.
@@ -160,13 +164,21 @@ async def _async_get_ready_client(
     hammering a small ESP8266 (limited RAM, few connection slots, expensive
     Noise handshake) hard enough to keep it, and Home Assistant's own
     connection to it, from recovering.
+
+    With `wait_for_connection` False a caller that finds a connect already in
+    progress gets None at once instead of queueing up behind it. A stream
+    would otherwise pile up a second's worth of stale frames and flush them
+    all at the lamp the moment the connection is back.
     """
     if (ready := _ready(host)) is not None:
         return ready
     if time.monotonic() < _retry_after.get(host, 0.0):
         return None
 
-    async with _connect_locks.setdefault(host, asyncio.Lock()):
+    lock = _connect_locks.setdefault(host, asyncio.Lock())
+    if lock.locked() and not wait_for_connection:
+        return None
+    async with lock:
         # Another frame may have finished connecting while we waited.
         if (ready := _ready(host)) is not None:
             return ready
@@ -236,6 +248,7 @@ async def async_send_light_state(
     color_temperature: float | None = None,
     brightness: float | None = None,
     transition_ms: float = 0,
+    wait_for_connection: bool = True,
 ) -> bool:
     """
     Send a light state directly to an ESPHome light.
@@ -248,7 +261,7 @@ async def async_send_light_state(
     for a plain on/off or brightness-only change. Returns True on success,
     False if the device isn't reachable right now (caller should fall back).
     """
-    ready = await _async_get_ready_client(host, port, credential, object_id)
+    ready = await _async_get_ready_client(host, port, credential, object_id, wait_for_connection)
     if ready is None:
         return False
     client, key = ready

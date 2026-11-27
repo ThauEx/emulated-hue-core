@@ -48,6 +48,8 @@ class EntertainmentAPI:
         self._interrupted = False
         self._socket_daemon = None
         self._timestamps = {}
+        # light id -> frames skipped since its direct path went down
+        self._paused: dict[str, int] = {}
         self._prev_data = {}
         self._user_details = user_details
         self._received_first_frame = False
@@ -149,6 +151,23 @@ class EntertainmentAPI:
             tasks.append(self.__async_process_light_packet(light_data, color_space))
         await asyncio.gather(*tasks)
 
+    def _track_delivery(self, light_id: str, delivered: bool) -> None:
+        """Log when a light's direct path stops and resumes taking frames."""
+        if delivered:
+            if (skipped := self._paused.pop(light_id, None)) is not None:
+                LOGGER.info(
+                    "Direct path for light %s is back after %s skipped frames", light_id, skipped
+                )
+        elif light_id not in self._paused:
+            self._paused[light_id] = 1
+            LOGGER.warning(
+                "Direct path for light %s is down, skipping its frames until it is back "
+                "(Home Assistant is not used while streaming)",
+                light_id,
+            )
+        else:
+            self._paused[light_id] += 1
+
     async def __async_process_light_packet(self, light_data, color_space):
         """Process an incoming stream message."""
         # 16-bit big-endian channel id, not light_data[1] + light_data[2]
@@ -174,6 +193,12 @@ class EntertainmentAPI:
         # Home Assistant path" for this light.
         direct_rgb = apply_balance(rgb, light_conf)
         esphome_host = light_conf.get("esphome_host")
+        wiz_host = light_conf.get("wiz_host")
+        # A light with a direct target is streamed to only through that path. A
+        # frame that can't be delivered is skipped instead of being sent through
+        # Home Assistant: that would hit the lamp from a second side (plus the
+        # reconnect) while it is already struggling, with a different brightness
+        # mapping, which looks like flicker.
         if esphome_host:
             # The HA path honors the light's `throttle` via the device layer,
             # but this path bypasses that - without it a 25-50Hz stream hits
@@ -184,33 +209,39 @@ class EntertainmentAPI:
             if now - self._timestamps.get(light_id, 0.0) < throttle_ms / 1000:
                 return
             self._timestamps[light_id] = now
-            if await esphome_direct.async_send_light_state(
-                host=esphome_host,
-                port=light_conf.get("esphome_port") or esphome_direct.DEFAULT_PORT,
-                credential=light_conf.get("esphome_password", ""),
-                object_id=light_conf.get("esphome_object_id"),
-                rgb=direct_rgb,
-                # The lamp only keeps the ratio between the rgb channels, so
-                # the frame's level goes in the brightness field.
-                brightness=lamp_brightness(rgb),
-                # Let the lamp fade across the gap between accepted frames
-                # instead of stepping from colour to colour.
-                transition_ms=throttle_ms,
-            ):
-                return
-
-        wiz_host = light_conf.get("wiz_host")
-        if wiz_host and await wiz_direct.async_send_light_state(
-            host=wiz_host,
-            port=light_conf.get("wiz_port") or wiz_direct.DEFAULT_PORT,
-            rgb=direct_rgb,
-            brightness=brightness,
-        ):
+            self._track_delivery(
+                light_id,
+                await esphome_direct.async_send_light_state(
+                    host=esphome_host,
+                    port=light_conf.get("esphome_port") or esphome_direct.DEFAULT_PORT,
+                    credential=light_conf.get("esphome_password", ""),
+                    object_id=light_conf.get("esphome_object_id"),
+                    rgb=direct_rgb,
+                    # The lamp only keeps the ratio between the rgb channels, so
+                    # the frame's level goes in the brightness field.
+                    brightness=lamp_brightness(rgb),
+                    # Let the lamp fade across the gap between accepted frames
+                    # instead of stepping from colour to colour.
+                    transition_ms=throttle_ms,
+                    # a stale frame is worth nothing once the connection is back
+                    wait_for_connection=False,
+                ),
+            )
             return
 
-        # Fall back to the normal Home Assistant path - either esphome_host
-        # isn't configured for this light, or the direct connection isn't
-        # reachable right now.
+        if wiz_host:
+            self._track_delivery(
+                light_id,
+                await wiz_direct.async_send_light_state(
+                    host=wiz_host,
+                    port=light_conf.get("wiz_port") or wiz_direct.DEFAULT_PORT,
+                    rgb=direct_rgb,
+                    brightness=brightness,
+                ),
+            )
+            return
+
+        # No direct target configured for this light: the normal Home Assistant path.
         entity_id = light_conf["entity_id"]
         device = await async_get_device(self.ctl, entity_id)
         call = device.new_control_state()
