@@ -1,4 +1,4 @@
-ARG BUILD_FROM=ghcr.io/hassio-addons/base:21.0.10
+ARG BUILD_FROM=ghcr.io/hassio-addons/base:21.0.12
 # hadolint ignore=DL3006
 FROM ${BUILD_FROM}
 
@@ -15,15 +15,15 @@ WORKDIR /app
 COPY requirements.txt /tmp/requirements.txt
 RUN \
     apk add --no-cache \
-        openssl=3.5.9-r0 \
-        py3-pip=26.1.2-r0 \
-        python3=3.14.10-r1 \
+        openssl=3.5.9-r1 \
+        py3-pip=26.1.2-r1 \
+        python3=3.14.10-r2 \
     \
     && apk add --no-cache --virtual .build-dependencies \
         build-base=0.5-r4 \
-        libffi-dev=3.5.2-r1 \
-        openssl-dev=3.5.9-r0 \
-        python3-dev=3.14.10-r1 \
+        libffi-dev=3.8.1-r0 \
+        openssl-dev=3.5.9-r1 \
+        python3-dev=3.14.10-r2 \
     \
     && pip install -r /tmp/requirements.txt \
     \
