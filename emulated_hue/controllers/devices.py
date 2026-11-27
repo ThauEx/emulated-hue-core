@@ -9,7 +9,7 @@ from typing import Any
 
 from emulated_hue import const
 from emulated_hue.const import ENTERTAINMENT_UPDATE_STATE_UPDATE_RATE
-from emulated_hue.utils import clamp
+from emulated_hue.utils import clamp, kelvin_to_mired
 
 from . import esphome_direct, wiz_direct
 from .color_utils import (
@@ -492,8 +492,8 @@ class CTDevice(BrightnessDevice):
     def _update_device_state(self, existing_state: EntityState | None = None) -> EntityState:
         """Update EntityState object."""
         existing_state = super()._update_device_state(existing_state)
-        existing_state.color_temp = self._hass_state_dict.get(const.HASS_ATTR, {}).get(
-            const.HASS_ATTR_COLOR_TEMP
+        existing_state.color_temp = self._mireds(
+            const.HASS_ATTR_COLOR_TEMP_KELVIN, const.HASS_ATTR_COLOR_TEMP
         )
         existing_state.color_mode = self._hass_state_dict.get(const.HASS_ATTR, {}).get(
             const.HASS_COLOR_MODE
@@ -505,15 +505,23 @@ class CTDevice(BrightnessDevice):
         """Return color mode."""
         return self._config_state.color_mode or const.HASS_ATTR_COLOR_TEMP
 
+    def _mireds(self, kelvin_attribute: str, legacy_mired_attribute: str) -> int | None:
+        """Return a Home Assistant colour temperature attribute in mireds, as the Hue API uses."""
+        attributes = self._hass_state_dict.get(const.HASS_ATTR, {})
+        if (kelvin := attributes.get(kelvin_attribute)) is not None:
+            return kelvin_to_mired(kelvin)
+        # Home Assistant versions that still report mireds
+        return attributes.get(legacy_mired_attribute)
+
     @property
     def min_mireds(self) -> int | None:
-        """Return min_mireds from hass."""
-        return self._hass_state_dict.get(const.HASS_ATTR, {}).get("min_mireds")
+        """Return the lowest mired value (the highest kelvin value) from hass."""
+        return self._mireds(const.HASS_ATTR_MAX_COLOR_TEMP_KELVIN, "min_mireds")
 
     @property
     def max_mireds(self) -> int | None:
-        """Return max_mireds from hass."""
-        return self._hass_state_dict.get(const.HASS_ATTR, {}).get("max_mireds")
+        """Return the highest mired value (the lowest kelvin value) from hass."""
+        return self._mireds(const.HASS_ATTR_MIN_COLOR_TEMP_KELVIN, "max_mireds")
 
     @property
     def color_temp(self) -> int:
@@ -529,7 +537,7 @@ class RGBDevice(BrightnessDevice):
 
         def set_hue_sat(self, hue: int | float, sat: int | float) -> None:
             """Set hue and saturation colors."""
-            self._control_state.hue_saturation = (int(hue), int(sat))
+            self._control_state.hue_saturation = (round(float(hue), 3), round(float(sat), 3))
             self._control_state.color_mode = const.HASS_COLOR_MODE_HS
 
         def set_xy(self, x: float, y: float) -> None:

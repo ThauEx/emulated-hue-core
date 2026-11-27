@@ -587,8 +587,8 @@ class HueApiV1Endpoints:
                     LOGGER.warning("Invalid hue/sat value in request: %s/%s", hue, sat)
                 else:
                     # Convert hs values to hass hs values
-                    hue = int((hue / const.HUE_ATTR_HUE_MAX) * 360)
-                    sat = int((sat / const.HUE_ATTR_SAT_MAX) * 100)
+                    hue = (hue / const.HUE_ATTR_HUE_MAX) * 360
+                    sat = (sat / const.HUE_ATTR_SAT_MAX) * 100
                     with contextlib.suppress(AttributeError):
                         call.set_hue_sat(hue, sat)
 
@@ -653,7 +653,8 @@ class HueApiV1Endpoints:
                 return
             if isinstance(device, controllers.devices.BrightnessDevice):
                 device = cast("controllers.devices.BrightnessDevice", device)
-                current_state[const.HUE_ATTR_BRI] = device.brightness
+                # Home Assistant goes up to 255, the Hue API stops at 254
+                current_state[const.HUE_ATTR_BRI] = min(device.brightness, const.HUE_ATTR_BRI_MAX)
                 current_state[const.HUE_ATTR_ALERT] = (
                     convert_flash_state(device.flash_state, const.HASS)
                     if device.flash_state

@@ -12,6 +12,11 @@ DEFAULT_TRANSITION_SECONDS = 0.4
 
 HASS_ATTR_BRIGHTNESS = "brightness"
 HASS_ATTR_COLOR_TEMP = "color_temp"
+# Home Assistant only reports and accepts kelvin for the colour temperature now,
+# the Hue API uses mireds.
+HASS_ATTR_COLOR_TEMP_KELVIN = "color_temp_kelvin"
+HASS_ATTR_MIN_COLOR_TEMP_KELVIN = "min_color_temp_kelvin"
+HASS_ATTR_MAX_COLOR_TEMP_KELVIN = "max_color_temp_kelvin"
 HASS_ATTR_XY_COLOR = "xy_color"
 HASS_ATTR_HS_COLOR = "hs_color"
 HASS_ATTR_RGB_COLOR = "rgb_color"
@@ -87,6 +92,9 @@ HUE_HTTPS_PORT = 443
 # add-on's config.json, since Supervisor's ingress proxy needs to know it
 # ahead of time (it's not something we can pass in via options/env).
 HUE_INGRESS_PORT = 8880
+# Some clients (a Philips TV doing Ambilight+Hue was observed) only list lights
+# up to this id, so new lights get the lowest free id and a warning above it.
+HUE_CLIENT_MAX_LIGHT_ID = 63
 # The panel can change light targets and enable pairing, so it only answers
 # Supervisor's ingress proxy (172.30.32.2) and the local machine, never the LAN.
 # Override with the HUE_INGRESS_ALLOWED_NETWORKS environment variable (comma

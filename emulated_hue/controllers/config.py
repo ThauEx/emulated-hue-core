@@ -4,6 +4,7 @@ import asyncio
 import copy
 import datetime
 import hashlib
+import itertools
 import logging
 import os
 from pathlib import Path
@@ -11,7 +12,11 @@ from typing import Any
 
 from getmac import get_mac_address
 
-from emulated_hue.const import CONFIG_WRITE_DELAY_SECONDS, DEFAULT_THROTTLE_MS
+from emulated_hue.const import (
+    CONFIG_WRITE_DELAY_SECONDS,
+    DEFAULT_THROTTLE_MS,
+    HUE_CLIENT_MAX_LIGHT_ID,
+)
 from emulated_hue.utils import (
     async_save_json,
     create_secure_string,
@@ -171,9 +176,17 @@ class Config:
             if entity_id == value["entity_id"]:
                 return key
         # light does not yet exist in config, create default config
-        next_light_id = "1"
-        if lights:
-            next_light_id = str(max(int(k) for k in lights) + 1)
+        used_ids = {int(k) for k in lights}
+        next_id = next(i for i in itertools.count(1) if i not in used_ids)
+        if next_id > HUE_CLIENT_MAX_LIGHT_ID:
+            LOGGER.warning(
+                "Light %s gets id %s: some clients (e.g. a Philips TV for Ambilight+Hue) "
+                "only list lights up to id %s. Remove lights you do not need from the export.",
+                entity_id,
+                next_id,
+                HUE_CLIENT_MAX_LIGHT_ID,
+            )
+        next_light_id = str(next_id)
         # generate unique id (fake zigbee address) from entity id
         unique_id = hashlib.md5(entity_id.encode()).hexdigest()
         unique_id = f"00:{unique_id[0:2]}:{unique_id[2:4]}:{unique_id[4:6]}:{unique_id[6:8]}:{unique_id[8:10]}:{unique_id[10:12]}:{unique_id[12:14]}-{unique_id[14:16]}"
