@@ -19,6 +19,15 @@ from .models import Controller
 
 LOGGER = logging.getLogger(__name__)
 
+# with debug logging, show at most this many frames per second for each light
+TRACE_FRAMES_PER_SECOND = 4
+# A frame that turns into the same command as the last one is not sent again,
+# a still picture would otherwise keep the lamp busy with 20-50 identical
+# commands per second (each one restarts its transition and is broadcast as a
+# state change to every connected client). It is repeated this often anyway, in
+# case somebody else changed the lamp in between.
+REPEAT_REFRESH_SECONDS = 2.0
+
 COLOR_TYPE_RGB = "RGB"
 COLOR_TYPE_XY_BR = "XY Brightness"
 HASS_SENSOR = "binary_sensor.emulated_hue_entertainment_active"
@@ -50,6 +59,8 @@ class EntertainmentAPI:
         self._timestamps = {}
         # light id -> frames skipped since its direct path went down
         self._paused: dict[str, int] = {}
+        # light id -> (what we last sent it, when)
+        self._last_sent: dict[str, tuple[tuple[int, ...], float]] = {}
         self._prev_data = {}
         self._user_details = user_details
         self._received_first_frame = False
@@ -151,14 +162,38 @@ class EntertainmentAPI:
             tasks.append(self.__async_process_light_packet(light_data, color_space))
         await asyncio.gather(*tasks)
 
-    def _track_delivery(self, light_id: str, delivered: bool) -> None:
-        """Log when a light's direct path stops and resumes taking frames."""
+    def _trace_frame(self, light_id: str, frame: str, rgb: tuple[float, float, float]) -> None:
+        """Log what a frame turns into for the lamp, a few frames per second."""
+        now = time.monotonic()
+        key = f"trace:{light_id}"
+        if now - self._timestamps.get(key, 0.0) < 1 / TRACE_FRAMES_PER_SECOND:
+            return
+        self._timestamps[key] = now
+        LOGGER.debug(
+            "Frame light %s: %s -> rgb=(%.3f, %.3f, %.3f) level=%.3f",
+            light_id,
+            frame,
+            *rgb,
+            lamp_brightness(rgb),
+        )
+
+    def _is_repeat(self, light_id: str, frame_key: tuple[int, ...], now: float) -> bool:
+        """Return whether the light already got exactly this frame a moment ago."""
+        last = self._last_sent.get(light_id)
+        return last is not None and last[0] == frame_key and now - last[1] < REPEAT_REFRESH_SECONDS
+
+    def _track_delivery(self, light_id: str, frame_key: tuple[int, ...], delivered: bool) -> None:
+        """Remember what a light got, and log when its direct path stops and resumes."""
         if delivered:
+            self._last_sent[light_id] = (frame_key, time.monotonic())
             if (skipped := self._paused.pop(light_id, None)) is not None:
                 LOGGER.info(
                     "Direct path for light %s is back after %s skipped frames", light_id, skipped
                 )
-        elif light_id not in self._paused:
+            return
+        # whatever the lamp shows now is unknown, so the next frame must be sent
+        self._last_sent.pop(light_id, None)
+        if light_id not in self._paused:
             self._paused[light_id] = 1
             LOGGER.warning(
                 "Direct path for light %s is down, skipping its frames until it is back "
@@ -182,11 +217,15 @@ class EntertainmentAPI:
             blue = (light_data[7] * 256 + light_data[8]) / 65535
             rgb = (red, green, blue)
             brightness = sum(rgb) / 3
+            if LOGGER.isEnabledFor(logging.DEBUG):
+                self._trace_frame(light_id, f"rgb=({red:.4f}, {green:.4f}, {blue:.4f})", rgb)
         else:
             x = float((light_data[3] * 256 + light_data[4]) / 65535)
             y = float((light_data[5] * 256 + light_data[6]) / 65535)
             brightness = (light_data[7] * 256 + light_data[8]) / 65535
             rgb = xy_brightness_to_rgb(x, y, brightness, gamut_for(light_conf))
+            if LOGGER.isEnabledFor(logging.DEBUG):
+                self._trace_frame(light_id, f"xy=({x:.3f}, {y:.3f}) bri={brightness:.4f}", rgb)
 
         # Set per-light via the ingress config panel (see ingress.py) -
         # esphome_host/wiz_host being unset just means "use the normal
@@ -208,9 +247,14 @@ class EntertainmentAPI:
             throttle_ms = light_conf.get("throttle") or 0
             if now - self._timestamps.get(light_id, 0.0) < throttle_ms / 1000:
                 return
+            level = lamp_brightness(rgb)
+            frame_key = tuple(round(c * 255) for c in (*direct_rgb, level))
+            if self._is_repeat(light_id, frame_key, now):
+                return
             self._timestamps[light_id] = now
             self._track_delivery(
                 light_id,
+                frame_key,
                 await esphome_direct.async_send_light_state(
                     host=esphome_host,
                     port=light_conf.get("esphome_port") or esphome_direct.DEFAULT_PORT,
@@ -219,7 +263,7 @@ class EntertainmentAPI:
                     rgb=direct_rgb,
                     # The lamp only keeps the ratio between the rgb channels, so
                     # the frame's level goes in the brightness field.
-                    brightness=lamp_brightness(rgb),
+                    brightness=level,
                     # Let the lamp fade across the gap between accepted frames
                     # instead of stepping from colour to colour.
                     transition_ms=throttle_ms,
@@ -230,8 +274,12 @@ class EntertainmentAPI:
             return
 
         if wiz_host:
+            frame_key = tuple(round(c * 255) for c in (*direct_rgb, brightness))
+            if self._is_repeat(light_id, frame_key, time.monotonic()):
+                return
             self._track_delivery(
                 light_id,
+                frame_key,
                 await wiz_direct.async_send_light_state(
                     host=wiz_host,
                     port=light_conf.get("wiz_port") or wiz_direct.DEFAULT_PORT,

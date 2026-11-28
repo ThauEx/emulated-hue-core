@@ -52,6 +52,7 @@ def stream(monkeypatch):
         api.ctl = SimpleNamespace(config_instance=_Config(light_conf))
         api._timestamps = {}
         api._paused = {}
+        api._last_sent = {}
         return api
 
     return make, sender, get_device
