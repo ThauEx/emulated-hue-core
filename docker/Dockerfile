@@ -21,7 +21,7 @@ RUN \
     \
     && apk add --no-cache --virtual .build-dependencies \
         build-base=0.5-r4 \
-        libffi-dev=3.8.1-r0 \
+        libffi-dev=3.8.2-r0 \
         openssl-dev=3.5.9-r1 \
         python3-dev=3.14.10-r2 \
     \
